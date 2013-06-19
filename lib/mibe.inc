@@ -63,7 +63,8 @@ populate_smartos() {
 	# Create standard tpl manifest
 	cat > ${mi_reposdir}/${mi_repo}/manifest <<-EOF
 	name="${mi_image}"
-	product="Joyent Instance"
+	organization="Joyent"
+	brand="Instance"
 	version="1.0.0"
 	description="Description for image ${mi_image}"
 	homepage="http://wiki.joyent.com/jpc2/Joyent+${mi_image}+SmartMachine"
@@ -74,22 +75,21 @@ populate_smartos() {
 	mkdir -p ${mi_reposdir}/${mi_repo}/copy/root &> /dev/null || fail "* ERROR - Couldn't create directory ${mi_reposdir}/${mi_repo}/copy/root.";
 	cat > ${mi_reposdir}/${mi_repo}/copy/root/customize <<-EOF
 	#!/usr/bin/bash
-	PATH=/opt/local/gnu/bin:/opt/local/bin:/opt/local/sbin:/usr/xpg4/bin:/usr/bin:/usr/sbin:/usr/sfw/bin
+	#
+	# Put customizations to your image in this file.
+
+	PATH=/opt/local/gnu/bin:/opt/local/bin:/opt/local/sbin:/usr/bin:/usr/sbin
 
 	# Exit if any commands fail
 	set -o errexit
 
-	# Install standard packages
-	echo "* Installing standard packages.";
+	# Ensure we have updated standard packages
+	echo "* Updating standard packages.";
 	touch /opt/local/.dlj_license_accepted
-	pkgin -f -y update
-	pkg_delete -v nodejs smtools
+	pkg_delete -v nodejs smtools dtracetools
 	pkg_add -v nodejs smtools dtracetools htop
 	npm install smartdc -g
 	npm install jsontool -g
-
-	# Install image specific packages
-	echo "* Installing image specific packages.";
 
 	# Configuring image specific packages
 	echo "* Configuring image specific packages.";
@@ -98,6 +98,7 @@ populate_smartos() {
 	echo "* Cleaning up."
 	rm -rf /root/*
 
+	# Prepare image for provisioning
 	sm-prepare-image -y
 	EOF
 
