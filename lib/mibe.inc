@@ -84,8 +84,7 @@ populate_smartos() {
 
 	# Ensure we have updated standard packages
 	echo "* Updating standard packages.";
-	touch /opt/local/.dlj_license_accepted
-	pkg_delete -v nodejs smtools dtracetools
+	pkg_delete -v nodejs smtools
 	pkg_add -v nodejs smtools dtracetools htop
 	npm install smartdc -g
 	npm install jsontool -g
@@ -112,7 +111,7 @@ populate_smartos() {
   |__|   \`--'  \`-' \`;-| \`-' '  ' \`-'
                    /  ; %brand% (%name% %version%)
                    \`-'  %homepage%
-
+	
 	EOF
 
 	# Create standard tpl packages
