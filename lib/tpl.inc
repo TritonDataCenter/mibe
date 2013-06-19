@@ -347,8 +347,9 @@ zone_packages() {
   if [[ -f "${tpl_path}/packages" ]]; then
     log "* Installing the packages list...";
     IFS=$'\n\r';
-    packages=($(cat ${tpl_path}/packages));
+    packages_raw=($(cat ${tpl_path}/packages));
     unset IFS;
+    packages=(${packages_raw[@]/\#*/});
     resultp=$(zlogin ${zone_name} \
               PATH=/opt/local/gnu/bin:/opt/local/bin:/opt/local/sbin:/usr/bin:/usr/sbin \
               pkg_add -v ${packages[@]} 1> ${log_dir}/${tpl_name}-${tpl_version}-${now}-output.log \

@@ -72,8 +72,7 @@ populate_smartos() {
 	EOF
 
 	# Create standard tpl customize
-	mkdir -p ${mi_reposdir}/${mi_repo}/copy/root &> /dev/null || fail "* ERROR - Couldn't create directory ${mi_reposdir}/${mi_repo}/copy/root.";
-	cat > ${mi_reposdir}/${mi_repo}/copy/root/customize <<-EOF
+	cat > ${mi_reposdir}/${mi_repo}/customize <<-EOF
 	#!/usr/bin/bash
 	#
 	# Put customizations to your image in this file.
@@ -104,6 +103,22 @@ populate_smartos() {
 
 	# Create standard tpl var/zoneinit/includes
 	mkdir -p ${mi_reposdir}/${mi_repo}/copy/var/zoneinit/includes &> /dev/null || fail "* ERROR - Couldn't create directory ${mi_reposdir}/${mi_repo}/copy/var/zoneinit/includes.";
+
+	# Create standard tpl motd
+	cat > ${mi_reposdir}/${mi_repo}/motd <<-EOF
+   __        .                   .
+ _|  |_      | .-. .  . .-. :--. |-
+|_    _|     ;|   ||  |(.-' |  | |
+  |__|   \`--'  \`-' \`;-| \`-' '  ' \`-'
+                   /  ; %brand% (%name% %version%)
+                   \`-'  %homepage%
+
+	EOF
+
+	# Create standard tpl packages
+	cat > ${mi_reposdir}/${mi_repo}/packages <<-EOF
+	# List packages to add to your image here one per line.
+	EOF
 
 	echo "* Done.";
 }

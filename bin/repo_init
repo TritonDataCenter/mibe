@@ -19,7 +19,7 @@ usage() {
     
         TYPE              Type of build repository to initialize.
                           Supported types: smartos
-    	REPOSITORY        Name of build repository to initialize.
+        REPOSITORY        Name of build repository to initialize.
        	                  eg: mi-percona
 
 	Options:
