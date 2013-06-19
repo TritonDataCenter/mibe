@@ -40,7 +40,7 @@
 Clone the mibe repository in /opt (or wherever has space to store image files):
 
     # cd /opt
-    # git clone https://github.com/dcrudgington/mibe
+    # git clone https://github.com/joyent/mibe
     # export PATH=$PATH:/opt/mibe/bin
 
 Run repo_cloneall to grab the updated Joyent Machine Image build repositories.  They will be pulled down into mibe_home/repos.
@@ -51,19 +51,19 @@ Create a VM (SmartOS) for building images:
 
     # cat <<EOF > mibezone1.json
     {
-    "brand": "joyent",
-    "image_uuid": "9eac5c0c-a941-11e2-a7dc-57a6b041988f",
-    "alias": "mibezone1",
-    "hostname": "mibezone1",
-    "max_physical_memory": 512,
-    "quota": 20,
-    "nics": [
-    {
-    "nic_tag": "admin",
-    "ip": "dhcp",
-    "primary": "true"
-    }
-    ]
+      "brand": "joyent",
+      "image_uuid": "9eac5c0c-a941-11e2-a7dc-57a6b041988f",
+      "alias": "mibezone1",
+      "hostname": "mibezone1",
+      "max_physical_memory": 512,
+      "quota": 20,
+      "nics": [
+        {
+          "nic_tag": "admin",
+          "ip": "dhcp",
+          "primary": "true"
+        }
+      ]
     }
     EOF
 
