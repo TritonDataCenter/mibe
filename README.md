@@ -7,9 +7,9 @@
 * [Add your SSH key to github] (https://help.github.com/articles/generating-ssh-keys)
 * [Install SmartOS] (http://wiki.smartos.org/display/DOC/Download+SmartOS)
 * [Install Pkgsrc] (http://wiki.smartos.org/display/DOC/Installing+pkgin)
-* Install Git
+* Install needed tools
 
-        # pkgin install scmgit
+        # pkgin install scmgit gawk
 
 * Import latest base/base64 image to build images from:
 
