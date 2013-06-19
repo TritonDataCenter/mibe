@@ -100,6 +100,9 @@ populate_smartos() {
 	sm-prepare-image -y
 	EOF
 
+	# Make standard tpl customize executable
+	chmod +x ${mi_reposdir}/${mi_repo}/customize
+
 	# Create standard tpl var/zoneinit/includes
 	mkdir -p ${mi_reposdir}/${mi_repo}/copy/var/zoneinit/includes &> /dev/null || fail "* ERROR - Couldn't create directory ${mi_reposdir}/${mi_repo}/copy/var/zoneinit/includes.";
 
