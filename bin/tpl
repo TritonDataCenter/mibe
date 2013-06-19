@@ -126,7 +126,7 @@ fi
 
 ### start processing the template
 
-preboot_copy_new
+preboot_copy
 
 if [ ${customize_zone} == "yes" ]; then
   zone_boot
