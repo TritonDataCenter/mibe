@@ -40,9 +40,9 @@ fi
 if check dump; then
   log "- Dataset dump file already exists."
   if check manifest; then
-    dataset_manifest3
+    dataset_manifest
   else
-    dataset_manifest3
+    dataset_manifest
   fi
   # dataset_publish
   log "- Finished, nothing else to do."
@@ -54,7 +54,7 @@ if check dataset; then
   log "- Dataset already exists."
   if check final_snap; then
     dataset_dump
-    dataset_manifest3
+    dataset_manifest
     # dataset_publish
   else
     log "- Dataset exists, but no @final snapshot present."
@@ -127,7 +127,6 @@ fi
 ### start processing the template
 
 preboot_copy_new
-preboot_unpack
 
 if [ ${customize_zone} == "yes" ]; then
   zone_boot
@@ -152,7 +151,7 @@ fi
 
 dataset_snapshot
 dataset_dump
-dataset_manifest3
+dataset_manifest
 
 if [ ${customize_zone} == "yes" ]; then
   zone_restore_zonepath

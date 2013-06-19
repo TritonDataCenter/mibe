@@ -155,146 +155,6 @@ dataset_dump() {
   eval "log_${FUNCNAME[0]}=done"
 }
 dataset_manifest() {
-  local file=${tpl_file}
-
-  if [[ ! $(uname -v) =~ ^joyent ]]; then
-    log "- Skipping manifest generation, not on SDC6"
-    return 0
-  fi
-
-  for user in ${users}; do
-    tpl_users_snippet="${tpl_users_snippet+${tpl_users_snippet}, }{\"name\": \"${user}\"}"
-  done
-  if [ -n "${tpl_users_snippet}" ]; then
-    tpl_users_block="\"users\": [ ${tpl_users_snippet} ],
-  \"generate_passwords\": true,"
-  fi
-
-  if [ -n "${urn}" ]; then
-    tpl_urn_block="\"urn\": \"${urn}\","
-  fi
-
-  for net in ${networks}; do
-    tpl_networks_snippet="${tpl_networks_snippet+${tpl_networks_snippet}, }{\"name\": \"${net}\", \"description\": \"${!net}\"}"
-  done
-  if [ -n "${tpl_networks_snippet}" ]; then
-    tpl_networks_block="\"networks\": [ ${tpl_networks_snippet} ]"
-  fi
-
-#  file_time=$(/usr/bin/ls -l --time-style '+%t%FT%R%Z%t' ${file} |\
-#              /usr/bin/awk -F$'\t' '{print $2}' | /usr/bin/sed 's/UTC/Z/')
-  file_time=$(ls -l --time-style '+%Y-%m-%dT%H:%M:%SZ' | awk '{ print $6 }');
-  file_hash=$(/usr/bin/digest -a sha1 ${file})
-  file_size=$(/bin/ls -l ${file}|awk '{print $5}')
-  dataset_uuid=$(uuid)
-  if [ -n "${restricted_to_uuid}" ]; then
-    tpl_restricted_to_block="\"restricted_to_uuid\": \"${restricted_to_uuid}\","
-  fi
-
-  log "* Creating the dataset manifest..."
-  cat >${tpl_manifest} <<EOF
-{
-  "name": "${tpl_name}",
-  "version": "${tpl_version}",
-  "type": "zone-dataset",
-  "description": "${description}",
-  "published_at": "${file_time}",
-  "os": "smartos",
-  "files": [
-    {
-      "path": "${tpl_filename}",
-      "sha1": "${file_hash}",
-      "size": ${file_size}
-    }
-  ],
-  "requirements": {
-    ${tpl_networks_block}
-  },
-  ${tpl_urn_block}
-  ${tpl_users_block}
-  ${tpl_restricted_to_block}
-  "uuid": "${dataset_uuid}"
-}
-EOF
-  eval "log_${FUNCNAME[0]}=done"
-}
-dataset_manifest2() {
-  local file=${tpl_file}
-
-  for user in ${users}; do
-    tpl_users_snippet="${tpl_users_snippet+${tpl_users_snippet}, }{\"name\": \"${user}\"}"
-  done  
-  if [ -n "${tpl_users_snippet}" ]; then
-    tpl_users_block="\"users\": [ ${tpl_users_snippet} ],
-  \"generate_passwords\": true,"
-  fi
-  
-  if [ -n "${urn}" ]; then
-    tpl_urn_block="\"urn\": \"${urn}\","
-  fi
-
-  if [ -n "${minram}" ]; then
-    tpl_minram_block="\"minram\": \"${minram}\","
-  fi
-
-  for net in ${networks}; do
-    tpl_networks_snippet="${tpl_networks_snippet+${tpl_networks_snippet}, }{\"name\": \"${net}\", \"description\": \"${!net}\"}"
-  done
-  if [ -n "${tpl_networks_snippet}" ]; then
-    tpl_networks_block="\"networks\": [ ${tpl_networks_snippet} ]"
-  fi
-
-#  file_time=$(ls -l --time-style '+%t%FT%T%Z%t' ${file} |\
-#              /usr/bin/awk -F$'\t' '{print $2}' | /usr/bin/sed 's/UTC/Z/');
-  file_time=$(ls -l --time-style '+%Y-%m-%dT%H:%M:%SZ' | awk '{ print $6 }');
-  file_hash=$(/usr/bin/digest -a sha1 ${file});
-  file_size=$(/bin/ls -l ${file}|awk '{print $5}');
-  dataset_uuid=$(uuid);
-
-  if [ -n "${restricted_to_uuid}" ]; then
-    tpl_restricted_to_block="\"restricted_to_uuid\": \"${restricted_to_uuid}\","
-  fi
-
-  log "* Creating the dataset manifest..."
-  cat >${tpl_manifest} <<EOF
-{
-  "v": "2",
-  "uuid": "${dataset_uuid}",
-  "owner": "${owner_uuid}",
-  "name": "${tpl_name}",
-  "version": "${tpl_version}",
-  "state": "active",
-  "disabled": false,
-  "public": false,
-  "published_at": "${file_time}",
-  "type": "zone-dataset",
-  "os": "smartos",
-  "files": [
-    {
-      "sha1": "${file_hash}",
-      "size": ${file_size},
-      "compression": "bzip2"
-    }
-  ],
-  "description": "${description}",
-  "homepage": "${homepage}",
-  "urn": "sdc:sdc:${tpl_name}:${tpl_version}",
-  "requirements": {
-    ${tpl_minram_block}
-    ${tpl_networks_block}
-  },
-  ${tpl_users_block}
-  "tags": {
-    "role": "${role}"
-  },
-  "billing_tags": [
-    "${tpl_name}"
-  ]
-}
-EOF
-  eval "log_${FUNCNAME[0]}=done"
-}
-dataset_manifest3() {
   local file=${tpl_file};
 
   # Create users block for manifest
@@ -610,20 +470,7 @@ preboot_copy() {
   copy_dir=(${tpl_path}/copy ${copy_dir})
   for dir in ${copy_dir[@]}; do
     if [ -d ${dir} ]; then
-      (cd ${dir} && gtar -c . | gtar -C /${tpl_zpath}/root -x )
-    fi
-  done
-  eval "log_${FUNCNAME[0]}=done"
-}
-
-# New preboot_copy_new()
-preboot_copy_new() {
-  log "* Copying in template files..."
-  copy_dir=(${tpl_path}/copy ${copy_dir})
-  for dir in ${copy_dir[@]}; do
-    if [ -d ${dir} ]; then
       if [[ $(ls -d ${dir}/*/ 2>/dev/null) ]]; then
-#      if [[ $(gfind ${dir} -maxdepth 1 -mindepth 1 -type d) ]]; then
         subdirs=$(find ${dir} | egrep -v "/copy$");
         (cd ${dir} && gtar -c . | gtar -C /${tpl_zpath}/root -x )
         for i in ${subdirs[@]}; do
@@ -634,23 +481,6 @@ preboot_copy_new() {
     fi
   done
   cp /${tpl_path}/customize /${tpl_zpath}/root/root
-  eval "log_${FUNCNAME[0]}=done"
-}
-  
-preboot_unpack() {
-  log "* Unpacking optional template files..."
-  unpack_dir=(${tpl_path}/unpack ${unpack_dir})
-  for dir in ${unpack_dir[@]}; do
-    if [ -d ${dir} ]; then
-      unpack_files=($(cd ${dir}; find * -type f 2>/dev/null || true))
-      for unpack_file in ${unpack_files[@]}; do
-        unpack_dir=/${tpl_zpath}/root/$(dirname ${unpack_file})
-        [ ! -d ${unpack_dir} ] && mkdir ${unpack_dir}
-        gtar -xzC ${unpack_dir} \
-             -f ${dir}/${unpack_file}
-      done
-    fi
-  done
   eval "log_${FUNCNAME[0]}=done"
 }
 cores_unmount() {
