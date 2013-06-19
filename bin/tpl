@@ -1,0 +1,184 @@
+#!/usr/bin/bash
+# tpl.mibe
+#
+# Copyright (c) 2011 Joyent Inc., All rights reserved.
+
+PATH=/opt/local/bin:/opt/local/sbin:/usr/bin:/usr/sbin:/usr/sfw/bin
+set -o errexit
+#set -o xtrace
+
+mi_home=$(dirname $(cd ${0%/*} && pwd -P));
+now=$(date +%Y-%m-%d_%H-%M-%S);
+
+if [ ! ${mi_home}/lib/tpl.inc ]; then
+  echo "! Missing lib/tpl.inc file. Cannot continue."
+  exit 1
+else
+  source ${mi_home}/lib/tpl.inc
+fi
+
+parse_args $@
+if check tpl_manifest; then
+  source_manifest
+else
+  log "- Template manifest not found - dataset manifest may not be valid!"
+fi
+parse_config
+
+show_welcome_message
+
+### start here
+
+trap "echo '*** Abnormal termination, cleaning up' >&2; cleanup; exit 0" INT TERM EXIT
+
+### checks
+
+if ! check template; then
+  error "Template directory not specified or doesn't exist!"
+fi
+
+if check dump; then
+  log "- Dataset dump file already exists."
+  if check manifest; then
+    dataset_manifest3
+  else
+    dataset_manifest3
+  fi
+  # dataset_publish
+  log "- Finished, nothing else to do."
+  trap - INT TERM EXIT
+  exit 0
+fi
+
+if check dataset; then
+  log "- Dataset already exists."
+  if check final_snap; then
+    dataset_dump
+    dataset_manifest3
+    # dataset_publish
+  else
+    log "- Dataset exists, but no @final snapshot present."
+    log "  Assuming customize needs to be run still."
+  fi
+fi
+
+if [ ${customize_zone} == "yes" ]; then
+  if check zone; then
+    zone_backup_zonepath
+    if zone_state running; then
+      zone_halt
+      zone_wait halt
+    fi
+    if zone_state installed; then
+      cores_unmount
+      zone_detach
+    fi
+    if ! zone_state configured; then
+      error "Couldn't detach dataset from zone."
+    fi
+    # customize only makes sense in a zone context
+    if check customize; then
+      chmod +x ${customize}
+    else
+      error "Template customize script not found."
+    fi
+  else
+    error "Template needs a zone for the customize phase, however, zone
+  was not specified, or doesn't exist. Use your preferred provisioning
+  method to create a zone first, and pass to tpl using the -z arg."
+  fi
+fi
+
+if check base_file; then
+  log " - Base dataset identified as a file."
+elif check base; then
+  if check base_snap; then
+    log "- Base dataset snapshot found, we'll re-use it."
+  else
+    base_snapshot
+  fi
+else
+  error "Base dataset not specified or not found."
+fi
+
+if check dataset; then
+  log "- Target dataset already exists, we can continue."
+else
+  if check base_file; then
+    base_recv
+  else
+    base_clone
+  fi
+fi
+
+if [ ${customize_zone} == "yes" ]; then
+  if check zonepath; then
+    log "- Zone path already matching, we can continue."
+  else
+    zone_zonepath
+    zone_attach
+  fi
+fi
+
+if [ ${customize_network} == "yes" ]; then
+  zone_configure_network
+fi
+
+### start processing the template
+
+preboot_copy_new
+preboot_unpack
+
+if [ ${customize_zone} == "yes" ]; then
+  zone_boot
+  zone_wait boot
+  zone_create_motd
+  zone_create_product
+  zone_pkgin
+  zone_packages
+  zone_customize
+fi
+
+### finish & cleanup here
+
+if [ ${customize_zone} == "yes" ]; then
+  zone_halt
+  zone_wait halt
+  zone_detach
+  if [ ${log_zone_configure_network} ]; then
+    zone_restore_network
+  fi
+fi
+
+dataset_snapshot
+dataset_dump
+dataset_manifest3
+
+if [ ${customize_zone} == "yes" ]; then
+  zone_restore_zonepath
+  zone_attach
+  cores_mount
+  zone_clean_attr
+  if [ ${log_zone_halt} ]; then
+    zone_boot
+  fi
+fi
+
+if [ ${log_dataset_snapshot} ] && check final_snap; then
+  log "* Cleaning up final snapshot..."
+  zfs destroy ${tpl_zpath}@final >/dev/null 2>&1
+fi
+if ([ ${log_base_clone} ] || [ ${log_base_recv} ]) && check dataset; then
+  log "* Cleaning up temporary dataset..."
+  zfs destroy ${tpl_zpath} >/dev/null 2>&1
+fi
+if [ ${log_base_snapshot} ] && check base_snap; then
+  log "* Cleaning up base snapshot..."
+  zfs destroy ${tpl_base_snap} >/dev/null 2>&1
+fi
+
+show_final_message
+
+trap - INT TERM EXIT
+
+exit 0

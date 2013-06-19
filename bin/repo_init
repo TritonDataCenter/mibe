@@ -1,0 +1,61 @@
+#!/bin/bash
+#
+# This script populates standard build files into
+# a repository and commits to git (if option specified).
+#
+# Copyright (c) 2011 Joyent Inc., All rights reserved.
+
+set -o errexit
+set -o pipefail
+#set -o nounset
+#set -o xtrace
+
+usage() {
+	cat <<- EOF >&2
+
+	Usage: $0 [options] TYPE REPOSITORY
+
+	Arguments:
+    
+        TYPE              Type of build repository to initialize.
+                          Supported types: smartos
+    	REPOSITORY        Name of build repository to initialize.
+       	                  eg: mi-percona
+
+	Options:
+   
+        -g                Git support.  Assumes your repository is already created
+                          on the server and creates/commits the intial files.
+
+	EOF
+
+	exit 1;
+}
+
+while getopts "g" OPTION; do
+        case $OPTION in
+                g)	opt_g="true";	;;
+                *)	usage;		;;
+        esac
+done
+
+shift $(($OPTIND - 1))
+if [[ $# = 2 ]]; then
+        mi_type="$1";
+        mi_repo="$2";
+else
+        usage;
+fi
+
+[[ ${mi_type} != "smartos" ]] && usage;
+
+# Set mi_home and source mi_home/lib/mibe.inc if exists
+mi_home=$(dirname $(cd ${0%/*} && pwd -P));
+[[ -s "${mi_home}/lib/mibe.inc" ]] && source ${mi_home}/lib/mibe.inc || { echo "* ERROR - ${mi_home}/lib/mibe.inc not found,
+ can't continue."; exit 1; }
+
+mi_image=$(echo ${mi_repo} | sed 's/mi-//g');
+get_reposdir;
+get_gitserver;
+populate_smartos;
+[[ ! -z ${opt_g} ]] && init_repo;

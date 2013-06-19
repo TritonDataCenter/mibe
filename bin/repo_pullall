@@ -1,0 +1,29 @@
+#!/bin/bash
+#
+# git pulls all repositories listed in mi_home/etc/repos.list
+# from git server listed in mi_home/etc/repos.conf.
+#
+# Copyright (c) 2011 Joyent Inc., All rights reserved.
+
+set -o errexit
+set -o pipefail
+set -o nounset
+#set -o xtrace
+
+# Set mi_home and source mi_home/lib/mibe.inc if exists
+mi_home=$(dirname $(cd ${0%/*} && pwd -P));
+[[ -s "${mi_home}/lib/mibe.inc" ]] && source ${mi_home}/lib/mibe.inc || { echo "* ERROR - ${mi_home}/lib/mibe.inc not found, can't continue."; exit 1; }
+
+# Get git server and repos list
+get_gitserver;
+IFS=$'\n'
+get_reposlist;
+
+# Pull repositories in repos.list
+for i in ${mi_reposlist[@]}; do
+	[[ "${i}" =~ ^# ]] && continue;
+	[[ ! -s "${i}/.git/config" ]] && echo "* ${i} doesn't exist, skipping." && continue;
+	echo "* Pulling ${mi_gitserver}/$i in $i..";
+	cd $i && git pull || fail "* ERROR - Couldn't pull ${mi_gitserver}/${i}.git.";
+	cd ..
+done
