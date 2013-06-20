@@ -479,7 +479,7 @@ preboot_copy() {
         subdirs=$(find ${dir} | egrep -v "/copy$");
         (cd ${dir} && gtar -c . | gtar -C /${tpl_zpath}/root -x )
         for i in ${subdirs[@]}; do
-          newdir=$(echo ${i} | gawk -F"copy" '{ print $2 }');
+          newdir=$(echo "${i}" | nawk -F"copy" '{ print $2 }');
           chown root:root /${tpl_zpath}/root/${newdir}
         done
       fi
