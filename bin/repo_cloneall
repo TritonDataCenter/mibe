@@ -3,7 +3,7 @@
 # git clones all repositories listed in mi_home/etc/repos.list
 # from git server listed in mi_home/etc/repos.conf.
 #
-# Copyright (c) 2011 Joyent Inc., All rights reserved.
+# Copyright (c) 2013 Joyent Inc., All rights reserved.
 
 set -o errexit
 set -o pipefail
@@ -18,11 +18,12 @@ mi_home=$(dirname $(cd ${0%/*} && pwd -P));
 get_gitserver;
 IFS=$'\n'
 get_reposlist;
+get_reposdir;
 
 # Clone repositories in repos.list
 for i in ${mi_reposlist[@]}; do
 	[[ "${i}" =~ ^# ]] && continue;
-	[[ -d "${i}" ]] && echo "* ${i} already exists, skipping." && continue;
-	echo "* Cloning ${mi_gitserver}/$i into ${i}..";
-	git clone ${mi_gitserver}/${i}.git || fail "* ERROR - Couldn't clone ${mi_gitserver}/${i}.git.";
+	[[ -d "${mi_reposdir}/${i}" ]] && echo "* ${i} already exists, skipping." && continue;
+	echo "* Cloning ${mi_gitserver}/${i} into ${i}..";
+	git clone ${mi_gitserver}/${i}.git ${mi_reposdir}/${i} || echo "* ERROR - Couldn't clone ${mi_gitserver}/${i}.git.";
 done

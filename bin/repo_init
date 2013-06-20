@@ -3,7 +3,7 @@
 # This script populates standard build files into
 # a repository and commits to git (if option specified).
 #
-# Copyright (c) 2011 Joyent Inc., All rights reserved.
+# Copyright (c) 2013 Joyent Inc., All rights reserved.
 
 set -o errexit
 set -o pipefail
