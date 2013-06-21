@@ -1,8 +1,8 @@
-# mibe (Machine Image Build Environment)
-----
-## mibe is a build environment for SmartOS images.
+MIBE (Machine Image Build Environment)
+===
 
-----
+MIBE is a build environment for SmartOS images.
+
 ## Prerequisites
 * [Add your SSH key to github] (https://help.github.com/articles/generating-ssh-keys)
 * [Install SmartOS] (http://wiki.smartos.org/display/DOC/Download+SmartOS)
@@ -15,7 +15,6 @@
 
         # imgadm import $(imgadm avail | awk '/base64/ { print $1 }' | tail -1)
 
-----
 ## Layout
 
 * mi_home/bin - Holds scripts to handle repository operations and build images.
@@ -34,7 +33,7 @@
 * mi_home/logs - Logging directory for image builds.
 * mi_home/repos - Build repositories.
 
-----
+
 ## Usage
 
 Clone the mibe repository in /opt (or wherever has space to store image files):
