@@ -67,7 +67,7 @@ populate_smartos() {
 	brand="Instance"
 	version="1.0.0"
 	description="Description for image ${mi_image}"
-	homepage="http://wiki.joyent.com/jpc2/Joyent+${mi_image}+SmartMachine"
+	homepage="http://wiki.joyent.com/jpc2/${mi_image}+Instance"
 	users="root admin"
 	EOF
 
@@ -119,7 +119,7 @@ populate_smartos() {
 
 	# Create standard tpl packages
 	cat > ${mi_reposdir}/${mi_repo}/packages <<-EOF
-	# List packages to add to your image here one per line.
+	# List packages to add to your image one per line.
 	EOF
 
 	echo "* Done.";
