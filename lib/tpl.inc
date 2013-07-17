@@ -354,10 +354,13 @@ zone_packages() {
               PATH=/opt/local/gnu/bin:/opt/local/bin:/opt/local/sbin:/usr/bin:/usr/sbin \
               touch /opt/local/.dlj_license_accepted || echo $?);
 
-    resultp=$(zlogin ${zone_name} \
+    if [[ ! -z "${packages}" ]]; then
+      resultp=$(zlogin ${zone_name} \
               PATH=/opt/local/gnu/bin:/opt/local/bin:/opt/local/sbin:/usr/bin:/usr/sbin \
               pkg_add -v ${packages[@]} 1> ${log_dir}/${tpl_name}-${tpl_version}-${now}-output.log \
-              2> ${log_dir}/${tpl_name}-${tpl_version}-${now}-error.log || echo $?); 
+              2> ${log_dir}/${tpl_name}-${tpl_version}-${now}-error.log || echo $?);
+    fi
+
     if [ ! ${resultp} ]; then
       log "  OK";
     else
