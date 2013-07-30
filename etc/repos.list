@@ -1,4 +1,5 @@
 # List Machine Image repositories one line at a time
+mi-cassandra
 mi-example
 mi-hadoop
-mi-cassandra
+mi-java

@@ -329,10 +329,16 @@ zone_wait() {
 }
 zone_customize() {
   log "* Executing the customize script..."
+#  result=$(zlogin ${zone_name} TPL_NAME=${tpl_name} /root/$(basename ${customize}) \
+#           1> ${log_dir}/${tpl_name}-${tpl_version}-${now}-output.log \
+# 	   2> ${log_dir}/${tpl_name}-${tpl_version}-${now}-error.log \
+#           || echo $?)
+
   result=$(zlogin ${zone_name} TPL_NAME=${tpl_name} /root/$(basename ${customize}) \
-           1> ${log_dir}/${tpl_name}-${tpl_version}-${now}-output.log \
- 	   2> ${log_dir}/${tpl_name}-${tpl_version}-${now}-error.log \
-           || echo $?)
+           2>&1 >> ${log_dir}/${tpl_name}-${tpl_version}-${now}-all.log \
+	   | tee -a ${log_dir}/${tpl_name}-${tpl_version}-${now}-all.log \
+           >> ${log_dir}/${tpl_name}-${tpl_version}-${now}-error.log || echo $?);
+
   if [ ! ${result} ]; then
     log "  OK"
   else
@@ -355,10 +361,16 @@ zone_packages() {
               touch /opt/local/.dlj_license_accepted || echo $?);
 
     if [[ ! -z "${packages}" ]]; then
+#      resultp=$(zlogin ${zone_name} \
+#              PATH=/opt/local/gnu/bin:/opt/local/bin:/opt/local/sbin:/usr/bin:/usr/sbin \
+#              pkg_add -v ${packages[@]} 1> ${log_dir}/${tpl_name}-${tpl_version}-${now}-output.log \
+#              2> ${log_dir}/${tpl_name}-${tpl_version}-${now}-error.log || echo $?);
+
       resultp=$(zlogin ${zone_name} \
               PATH=/opt/local/gnu/bin:/opt/local/bin:/opt/local/sbin:/usr/bin:/usr/sbin \
-              pkg_add -v ${packages[@]} 1> ${log_dir}/${tpl_name}-${tpl_version}-${now}-output.log \
-              2> ${log_dir}/${tpl_name}-${tpl_version}-${now}-error.log || echo $?);
+              pkg_add -v ${packages[@]} 2>&1 >> ${log_dir}/${tpl_name}-${tpl_version}-${now}-all.log \
+              | tee -a ${log_dir}/${tpl_name}-${tpl_version}-${now}-all.log \
+              >> ${log_dir}/${tpl_name}-${tpl_version}-${now}-error.log || echo $?);
     fi
 
     if [ ! ${resultp} ]; then
@@ -376,8 +388,10 @@ zone_pkgin() {
   log "* Updating pkgsrc list... ";
   resultk=$(zlogin ${zone_name} \
             PATH=/opt/local/gnu/bin:/opt/local/bin:/opt/local/sbin:/usr/bin:/usr/sbin \
-            pkgin -f -y up 1> ${log_dir}/${tpl_name}-${tpl_version}-${now}-output.log \
-            2> ${log_dir}/${tpl_name}-${tpl_version}-${now}-error.log || echo $?); 
+            pkgin -f -y up 2>&1 >> ${log_dir}/${tpl_name}-${tpl_version}-${now}-all.log \
+	    | tee -a ${log_dir}/${tpl_name}-${tpl_version}-${now}-all.log |
+	    >> ${log_dir}/${tpl_name}-${tpl_version}-${now}-error.log || echo $?);
+
   if [ ! ${resultk} ]; then
     log "  OK";
   else
