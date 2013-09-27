@@ -37,6 +37,10 @@ if ! check template; then
   error "Template directory not specified or doesn't exist!"
 fi
 
+if ! check compression; then
+  error "Compression needs to be one of gzip or bzip2!"
+fi
+
 if check dump; then
   log "- Dataset dump file already exists."
   if check manifest; then
