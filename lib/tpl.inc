@@ -13,12 +13,13 @@ parse_args() {
   #   4. The script defaults will be applied where appropriate (configuration
   #      bit missing from command line args, .tplbuild or template manifest).
 
-  while getopts "a:b:c:d:u:v:z:" option; do
+  while getopts "a:b:c:d:f:u:v:z:" option; do
     case ${option} in
       a) assets_server=${OPTARGS} ;;
       b) base=${OPTARG} ;;
       c) copy_dir=${OPTARG} ;;
       d) zfs_dumps=${OPTARG} ;;
+      f) compression=${OPTARG} ;;
       u) unpack_dir=${OPTARG} ;;
       v) tpl_version=${OPTARG} ;;
       z) zone_name=${OPTARG} ;;
@@ -45,6 +46,7 @@ parse_config() {
 
   : ${base:=$(defaults base)}
   : ${zfs_dumps:=$(defaults zfs_dumps)}
+  : ${compression:=$(defaults compression)}
   : ${log_dir:=$(defaults log_dir)}
   : ${zone_name:=$(defaults zone_name)}
   : ${zpool:=$(defaults zpool)}
@@ -53,10 +55,16 @@ parse_config() {
   : ${customize_network:=$(defaults customize_network)}
   : ${customize_zone:=$(defaults customize_zone)}
 
+  if [ ${compression} == "bzip2" ]; then
+    tpl_ext="bz2"
+  else
+    tpl_ext="gz"
+  fi
+
   os_ver=$(uname -v)
   tpl_base_snap=${zpool}/${base}@${tpl_name}-${tpl_version}
   tpl_zpath=${zpool}/${tpl_name}-${tpl_version}
-  tpl_filename=${tpl_name}-${tpl_version}.zfs.bz2
+  tpl_filename=${tpl_name}-${tpl_version}.zfs.${tpl_ext}
   tpl_file=${zfs_dumps}/${tpl_filename}
   tpl_manifest=${zfs_dumps}/${tpl_name}-${tpl_version}.dsmanifest
   customize=${tpl_path}/${customize_script}
@@ -67,6 +75,7 @@ defaults() {
     tpl_version)        echo '1.0.0';;
     zpool)              echo 'zones';;
     zfs_dumps)          echo "${mi_home}/images";;
+    compression)        echo "bzip2";;
     assets_server)      echo 'server.joyent.us';;
     customize_script)   echo 'customize';;
     customize_network)  echo 'yes';;
@@ -88,6 +97,10 @@ check() {
     ;;
     dump)
       [ -f ${tpl_file} ]
+      return $?
+    ;;
+    compression)
+      [[ "bzip2" == ${compression} || "gzip" == ${compression} ]]
       return $?
     ;;
     manifest)
@@ -151,7 +164,12 @@ dataset_snapshot() {
 }
 dataset_dump() {
   log "* Sending dataset into ${tpl_file}..."
-  zfs send ${tpl_zpath}@final 2>/dev/null | bzip2 -9 > ${tpl_file}
+  if [ ${compression} == "bzip2" ]; then
+    COMPRESSOR="bzip2 -9"
+  else
+    COMPRESSOR="gzip -9"
+  fi
+  zfs send ${tpl_zpath}@final 2>/dev/null | ${COMPRESSOR} > ${tpl_file}
   eval "log_${FUNCNAME[0]}=done"
 }
 dataset_manifest() {
@@ -224,7 +242,7 @@ sed '/^[[:blank:]]*$/d' <<EOF > ${tpl_manifest}
     {
       "sha1": "${file_hash}",
       "size": ${file_size},
-      "compression": "bzip2"
+      "compression": "${compression}"
     }
   ],
   "description": "${description}",
