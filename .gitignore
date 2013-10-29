@@ -6,7 +6,5 @@ bin/repo_init_local
 bin/imgapi-cli
 bin/joyent-imgadm
 bin/build_stingray
-bin/tpl
-lib/tpl.inc
 etc/repos_local.conf
 etc/repos_local.list
