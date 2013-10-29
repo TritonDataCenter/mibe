@@ -56,7 +56,7 @@ parse_config() {
   os_ver=$(uname -v)
   tpl_base_snap=${zpool}/${base}@${tpl_name}-${tpl_version}
   tpl_zpath=${zpool}/${tpl_name}-${tpl_version}
-  tpl_filename=${tpl_name}-${tpl_version}.zfs.bz2
+  tpl_filename=${tpl_name}-${tpl_version}.zfs.gz
   tpl_file=${zfs_dumps}/${tpl_filename}
   tpl_manifest=${zfs_dumps}/${tpl_name}-${tpl_version}.dsmanifest
   customize=${tpl_path}/${customize_script}
@@ -151,7 +151,7 @@ dataset_snapshot() {
 }
 dataset_dump() {
   log "* Sending dataset into ${tpl_file}..."
-  zfs send ${tpl_zpath}@final 2>/dev/null | bzip2 -9 > ${tpl_file}
+  zfs send ${tpl_zpath}@final 2>/dev/null | gzip -9 > ${tpl_file}
   eval "log_${FUNCNAME[0]}=done"
 }
 dataset_manifest() {
@@ -171,7 +171,7 @@ dataset_manifest() {
 
   # Create minram block for manifest if exists
   if [ -n "${minram}" ]; then
-    tpl_minram_block="\"minram\": \"${minram}\","
+    tpl_minram_block="\"min_ram\": ${minram},"
   fi
 
   # Create role block for manifest
@@ -204,7 +204,8 @@ dataset_manifest() {
   file_hash=$(/usr/bin/digest -a sha1 ${file});
   file_size=$(/bin/ls -l ${file}|awk '{print $5}');
   dataset_uuid=$(uuid);
-  owner_uuid=$(uuid);
+#  owner_uuid=$(uuid);
+  owner_uuid="9dce1460-0c4c-4417-ab8b-25ca478c5a78";
 
 log "* Creating the dataset manifest...";
 sed '/^[[:blank:]]*$/d' <<EOF > ${tpl_manifest}
@@ -224,7 +225,7 @@ sed '/^[[:blank:]]*$/d' <<EOF > ${tpl_manifest}
     {
       "sha1": "${file_hash}",
       "size": ${file_size},
-      "compression": "bzip2"
+      "compression": "gzip"
     }
   ],
   "description": "${description}",
@@ -479,6 +480,8 @@ zone_state() {
   set -o pipefail
   local zone_state=$((zoneadm -z ${zone_name} list -p 2>/dev/null | \
     awk -F: '{print $3}') || echo 'unknown')
+#  local zone_state=$((vmadm list uuid=${zone_name} -p 2>/dev/null | \
+#    awk -F: '{ print $4 }') || echo 'unknown')
   set +o pipefail
   if [ ${1} ]; then
     [ ${1} == "${zone_state}" ]

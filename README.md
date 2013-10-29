@@ -22,17 +22,17 @@ MIBE is a build environment for SmartOS images.
     * bin/repo_cloneall - Clones latest Joyent Machine Image repositories into mi_home/repos.
     * bin/repo_pullall - Pulls latest Joyent Machine Image repositories into mi_home/repos.
     * bin/repo_init - Initializes a new Machine Image repository and populates standard build files.
-    * bin/tpl - Builds SmartOS images.
+    * bin/build_smartos - Image builder for SmartOS images.
 
 * mi_home/etc - Where configuration files for repositories are kept.
 
     * etc/repos.conf - Git server repository configuration on where to get Machine Image repos from.
     * etc/repos.list - Git repository list of Joyent Machine Image repositories. This is updated as more images are made public.
 
+* mi_home/lib - Includes directory for mibe.
 * mi_home/images - Final image dumps are stored here.
 * mi_home/logs - Logging directory for image builds.
 * mi_home/repos - Build repositories.
-
 
 ## Usage
 
@@ -70,9 +70,27 @@ Run vmadm create to create it:
 
     # vmadm create -f mibezone1.json
 
-To build an example image we specify the base image as the uuid of base/base64 we imported above), the vm to use (uuid of mibezone1), and the repository build files:
+To build an example image we specify the base image, the vm to use (uuid of mibezone1), and the repository build files:
 
     # cd /opt/mibe/repos
-    # tpl -b 9eac5c0c-a941-11e2-a7dc-57a6b041988f -z 991e1640-d8f3-11e2-b7ca-9fde7e2f67c6 mi-example
+    # build_smartos base64-13.2.1 629be403-f1e6-4c54-a4fc-dad4c4f25658 mi-example
+
+    build_smartos - version 1.0.0
+    Image builder for SmartOS images
+
+    * Sanity checking build files and environment..                       OK.
+    * Halting build zone (629be403-f1e6-4c54)..                           OK.
+    * Configuring build zone (629be403-f1e6-4c54) to be imaged..          OK.
+    * Booting build zone (629be403-f1e6-4c54)..                           OK.
+    * Copying in mi-example/copy files..                                  OK.
+    * Creating image motd and product file..                              OK.
+    * Installing packages list..                                          OK.
+    * Executing the customize file..                                      OK.
+    * Halting build zone (629be403-f1e6-4c54)..                           OK.
+    * Un-configuring build zone (629be403-f1e6-4c54)..                    OK.
+    * Creating image file and manifest..                                  OK.
+
+    Image:    /home/mibe/images/example-1.0.0.zfs.gz
+    Manifest: /home/mibe/images/example-1.0.0.dsmanifest
 
 The built image will be stored at mi_home/images/example-1.0.0.*

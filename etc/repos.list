@@ -3,6 +3,8 @@ mi-cassandra
 mi-example
 mi-hadoop
 mi-java
+mi-mongodb
 mi-nodejs
 mi-percona
 mi-riak
+mi-standard
