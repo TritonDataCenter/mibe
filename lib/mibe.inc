@@ -4,7 +4,7 @@ fail() {
 }
 failtest() {
 	printf "ERROR.\n\n! $*\n\n" >&2;
-	zone_cleanup;
+	zone_cleanup_sighandler;
 	exit 1;
 }
 get_reposdir() {
@@ -439,7 +439,7 @@ zone_create_dumpmanifest() {
 
   # Create role block for manifest
   if [ -n "${role}" ] && [ -n "${lbaas}" ]; then
-    mi_manifest_role_block="\"tags\": { \"role\": \"${role}\", \"${lbaas}\": true },";
+    mi_manifest_role_block="\"tags\": { \"role\": \"${role}\", \"lbaas\": ${lbaas} },";
   elif [ -n "${role}" ]; then
     mi_manifest_role_block="\"tags\": { \"role\": \"${role}\" },";
   fi
