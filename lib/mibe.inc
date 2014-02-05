@@ -51,11 +51,11 @@ get_gitserverlocal() {
 	[[ ! ${mi_gitserver} = */ ]] || mi_gitserver=$(echo "${mi_gitserver}" | gsed '$s/.$//');
 }
 populate_smartos() {
-	echo "* Populating ${mi_reposdir}/${mi_repo} SmartOS repository with build (tpl) files..";
+	echo "* Populating ${mi_reposdir}/${mi_repo} SmartOS repository with build files..";
         [[ -d "${mi_reposdir}/${mi_repo}" ]] && fail "* ERROR - ${mi_reposdir}/${mi_repo} already exists.";
 	mkdir ${mi_reposdir}/${mi_repo} &> /dev/null || fail "* ERROR - Couldn't create directory ${mi_reposdir}/${mi_repo}.";
 
-	# Create standard tpl Changelog
+	# Create Changelog
 	cat > ${mi_reposdir}/${mi_repo}/Changelog <<-EOF
 	# Changelog for ${mi_repo}
 
@@ -65,7 +65,7 @@ populate_smartos() {
 	* etc
 	EOF
 
-	# Create standard tpl manifest
+	# Create manifest
 	cat > ${mi_reposdir}/${mi_repo}/manifest <<-EOF
 	name="${mi_image}"
 	organization="Joyent"
@@ -76,7 +76,7 @@ populate_smartos() {
 	users="root admin"
 	EOF
 
-	# Create standard tpl customize
+	# Create customize
 	cat > ${mi_reposdir}/${mi_repo}/customize <<-EOF
 	#!/usr/bin/bash
 	#
@@ -89,10 +89,11 @@ populate_smartos() {
 
 	# Ensure we have updated standard packages
 	echo "* Updating standard packages.";
-	pkg_delete -v nodejs smtools
-	pkg_add -v nodejs smtools
+	pkg_delete -v nodejs smtools zoneinit
+	pkg_add -v nodejs smtools zoneinit
 	npm install smartdc -g
 	npm install jsontool -g
+	npm install manta -g
 
 	# Configuring image specific packages
 	echo "* Configuring image specific packages.";
@@ -105,13 +106,13 @@ populate_smartos() {
 	sm-prepare-image -y
 	EOF
 
-	# Make standard tpl customize executable
+	# Make customize executable
 	chmod +x ${mi_reposdir}/${mi_repo}/customize
 
-	# Create standard tpl var/zoneinit/includes
+	# Create var/zoneinit/includes
 	mkdir -p ${mi_reposdir}/${mi_repo}/copy/var/zoneinit/includes &> /dev/null || fail "* ERROR - Couldn't create directory ${mi_reposdir}/${mi_repo}/copy/var/zoneinit/includes.";
 
-	# Create standard tpl motd
+	# Create motd
 	cat > ${mi_reposdir}/${mi_repo}/motd <<-EOF
    __        .                   .
  _|  |_      | .-. .  . .-. :--. |-
@@ -122,7 +123,7 @@ populate_smartos() {
 	
 	EOF
 
-	# Create standard tpl packages
+	# Create packages
 	cat > ${mi_reposdir}/${mi_repo}/packages <<-EOF
 	# List packages to add to your image one per line.
 	dtracetools
@@ -378,10 +379,10 @@ zone_exec_customize() {
 }
 zone_cleanup() {
         # Check if mi_bzone_tplate exists and remove it
-        [[ $(zfs list -Ho name -t filesystem ${mi_bzone_tplate} &> /dev/null)$? -eq 0 ]] && zfs destroy -R ${mi_bzone_tplate}
+        [[ $(zfs list -Ho name -t filesystem ${mi_bzone_tplate} &> /dev/null)$? -eq 0 ]] && zfs destroy -R ${mi_bzone_tplate} &> /dev/null
 
 	# Check if mi_bimage_snap exists and remove it
-        [[ $(zfs list -Ho name -t snapshot ${mi_bimage_snap} &> /dev/null)$? -eq 0 ]] && zfs destroy ${mi_bimage_snap}
+        [[ $(zfs list -Ho name -t snapshot ${mi_bimage_snap} &> /dev/null)$? -eq 0 ]] && zfs destroy ${mi_bimage_snap} &> /dev/null
 }
 zone_cleanup_sighandler() {
 	printf "\n* Cleaning up..\n\n";
@@ -407,10 +408,10 @@ zone_cleanup_sighandler() {
 	zoneadm -z ${mi_bzone} boot &> /dev/null || true;
 
         # Check if mi_bzone_tplate exists and remove it
-        [[ $(zfs list -Ho name -t filesystem ${mi_bzone_tplate} &> /dev/null)$? -eq 0 ]] && zfs destroy -R ${mi_bzone_tplate}
+        [[ $(zfs list -Ho name -t filesystem ${mi_bzone_tplate} &> /dev/null)$? -eq 0 ]] && zfs destroy -R ${mi_bzone_tplate} &> /dev/null
 
 	# Check if mi_bimage_snap exists and remove it
-        [[ $(zfs list -Ho name -t snapshot ${mi_bimage_snap} &> /dev/null)$? -eq 0 ]] && zfs destroy ${mi_bimage_snap}
+        [[ $(zfs list -Ho name -t snapshot ${mi_bimage_snap} &> /dev/null)$? -eq 0 ]] && zfs destroy ${mi_bimage_snap} &> /dev/null
 
 	exit 1;
 }
