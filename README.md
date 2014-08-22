@@ -3,6 +3,14 @@ MIBE (Machine Image Build Environment)
 
 MIBE is a build environment for SmartOS images.
 
+Joyent uses this internally to build SmartOS images, but it's not an officially supported solution.
+
+SDC customers should see the following for building SmartOS images: [How to Create a SmartOS Image]  (https://docs.joyent.com/sdc7/working-with-images/how-to-create-a-smartos-image).
+
+SmartOS users should use the following process: [Creating a Custom Zone Image]  (http://wiki.smartos.org/display/DOC/Managing+Images#ManagingImages-CreatingaCustomZoneImage)
+
+
+
 ## Prerequisites
 * [Add your SSH key to github] (https://help.github.com/articles/generating-ssh-keys)
 * [Install SmartOS] (http://wiki.smartos.org/display/DOC/Download+SmartOS)
