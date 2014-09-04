@@ -337,8 +337,8 @@ zone_create_motdproduct() {
 }
 zone_install_packages() {
 	# First run pkgin update
-	mi_bzone_result=$(zlogin ${mi_bzone} PATH=/opt/local/bin:/opt/local/sbin:/usr/bin:/usr/sbin \
-            touch /opt/local/.dlj_license_accepted; pkgin -f -y up 2>&1 >> ${mi_bzone_logall} \
+	mi_bzone_result=$(zlogin ${mi_bzone} 'PATH=/opt/local/bin:/opt/local/sbin:/usr/bin:/usr/sbin \
+            touch /opt/local/.dlj_license_accepted; pkgin -f -y up 2>&1' >> ${mi_bzone_logall} \
             | tee -a ${mi_bzone_logall} >> ${mi_bzone_logerr} || echo $?);
 
 	[[ ! ${mi_bzone_result} ]] || failtest "Unable to update pkgin list.";
