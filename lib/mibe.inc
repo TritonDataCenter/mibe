@@ -35,26 +35,6 @@ get_reposlist() {
 	# Grab repos.list
 	mi_reposlist=$(cat ${mi_home}/etc/repos.list);
 }
-get_reposlistlocal() {
-	# Make sure mi_home/etc/repos_local.list exists
-	[[ ! -f "${mi_home}/etc/repos_local.list" ]] && fail "* ERROR - ${mi_home}/etc/repos_local.list doesn't exist.";
-
-	# Grab repos.list
-	mi_reposlist=$(cat ${mi_home}/etc/repos_local.list);
-}
-get_gitserverlocal() {
-	# Make sure mi_home/etc/repos_local.conf exists
-	[[ ! -f "${mi_home}/etc/repos_local.conf" ]] && fail "* ERROR - ${mi_home}/etc/repos_local.conf doesn't exist.";
-
-	# Grab GITSERVER setting from mi_home/etc/repos_local.conf
-	mi_gitserver=$(grep "^GITSERVER=" ${mi_home}/etc/repos_local.conf | awk -F\" '{ print $2 }');
-
-	# Make sure GITSERVER is not empty
-	[[ ! -z "${mi_gitserver}" ]] || fail "* ERROR - Couldn't find git server in ${mi_home}/etc/repos_local.conf.";
-
-	# Remove trailing slash if there is one
-	[[ ! ${mi_gitserver} = */ ]] || mi_gitserver=$(echo "${mi_gitserver}" | gsed '$s/.$//');
-}
 populate_smartos() {
 	echo "* Populating ${mi_reposdir}/${mi_repo} SmartOS repository with build files..";
         [[ -d "${mi_reposdir}/${mi_repo}" ]] && fail "* ERROR - ${mi_reposdir}/${mi_repo} already exists.";
@@ -63,9 +43,8 @@ populate_smartos() {
 	# Create Changelog
 	cat > ${mi_reposdir}/${mi_repo}/Changelog <<-EOF
 	${mi_image}-x.x.x
-	* Change1
-	* Change2
-	* etc
+	* Base image is base64-x.x.x (20xxQx)
+	* Initial release
 	EOF
 
 	# Create manifest
@@ -75,7 +54,7 @@ populate_smartos() {
 
 	# Build image to use for base of the image.  This image must
 	# already exist in the ZFS hierarchy.
-	base="base-x.x.x"
+	base="base64-x.x.x"
 
 	# Organization name (implanted in motd and product)
 	organization="Joyent"
