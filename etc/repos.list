@@ -6,6 +6,7 @@ mi-java
 mi-mongodb
 mi-nodejs
 mi-percona
+mi-postgresql
 mi-riak
 mi-standard
 mi-centos

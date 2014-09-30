@@ -1,0 +1,332 @@
+#!/bin/bash
+#
+# test_smartos - Image tester for SmartOS images
+#
+# Copyright (c) 2013 Joyent Inc., All rights reserved.
+
+set -o errexit
+set -o pipefail
+#set -o nounset
+#set -o xtrace
+#export 'PS4=+ $me.$LINENO ';
+
+usage() {
+        cat <<- EOF >&2
+
+	test_smartos - version ${ts_version}
+	Image tester for SmartOS images
+
+	Usage: $0 [options] IMAGE_FILE IMAGE_REPO
+
+	Options:
+
+	       -d              Don't delete test image VM after running tests.  For now 
+	                       the test VM is always f6d773b0-cc97-11e3-9d16-6fa215a110d1.
+
+	       -w              Create wiki documentation for image. 
+
+	Arguments:
+	     
+	       IMAGE_FILE      Image file to test.  This image must be in .zfs.gz format.
+	                       e.g. /home/mibe/images/percona-13.4.0.zfs.gz
+
+	       IMAGE_REPO      Build repository for the image file.  This repository must
+	                       contain the 'tests' directory which includes necessary
+	                       serverspec test files.
+	                       e.g. mi-percona
+
+	EOF
+
+        exit 1;
+}
+
+while getopts "dw" OPTION; do
+        case $OPTION in
+                d)
+                        ts_opt_d="yes";
+                        ;;
+                w)
+                        ts_opt_w="yes";
+                        ;;
+                *)
+                        usage;
+                        ;;
+        esac
+done
+
+shift $(($OPTIND - 1))
+if [[ $# = 2 ]]; then
+        ts_image_file="$1";
+        ts_image_repo="$2";
+else
+        usage;
+fi
+ts_version="1.0.0";
+
+# Set mi_home and source mi_home/lib/mibe.inc if exists
+mi_home=$(dirname $(cd ${0%/*} && pwd -P));
+[[ -s "${mi_home}/lib/mibe.inc" ]] && source ${mi_home}/lib/mibe.inc || { echo "* ERROR - ${mi_home}/lib/mibe.inc not found, can't continue.";exit 1; }
+
+# Get repository directory
+get_reposdir;
+
+# Set image, time, log variables
+ts_version="1.0.0";
+ts_image_fileb=$(basename "${ts_image_file}");
+ts_time=$(date +%Y-%m-%d_%H-%M-%S);
+ts_image_logall="${mi_home}/logs/${ts_image_fileb%.zfs.gz}-${ts_time}-test.log";
+ts_image_logdoc="${mi_home}/logs/${ts_image_fileb%.zfs.gz}-docs.log";
+
+printf "\ntest_smartos - version ${ts_version}\n";
+printf "Image tester for SmartOS images\n";
+
+printf "\n%-60s" "* Sanity checking test files and environment.."
+
+# Check that we have privileges
+[[ $(imgadm &> /dev/null)$? -ne 0 ]] && failts "We don't have enough privileges to continue.";
+
+# Check that build repository ts_brepo directory exists
+[[ -d "${ts_image_repo}/tests" ]] || [[ -d "${mi_reposdir}/${ts_image_repo}/tests" ]] || failts "Build repository ${ts_image_repo}/tests doesn\'t exist.";
+
+# Check that build repository tests directory has files in it
+[[ "$(ls -A ${mi_reposdir}/${ts_image_repo}/tests)" ]] || failts "Build repository directory ${ts_image_repo}/tests has no files in it.";
+
+# Check that build repository manifest ts_image_repo/manifest exists
+[[ -f "${ts_image_repo}/manifest" ]] && source ${ts_image_repo}/manifest || { [[ -f "${mi_reposdir}/${ts_image_repo}/manifest" ]] && source ${mi_reposdir}/${ts_image_repo}/manifest || failts "A build repository manifest ${ts_image_repo}/manifest doesn't exist.\n! A build repository with proper build files must exist for an\n! image to be tested.  See https://github.com:joyent/mi-example\n"; }
+
+# Check that ts_image_file exists and assign it
+[[ -f "${ts_image_file}" ]] || { [[ -f "${mi_home}/images/${ts_image_file}" ]] && ts_image_file="${mi_home}/images/${ts_image_file}" || failts "Image file ${ts_image_file} doesn't exist\n"; }
+
+# Check if the image VM is already created
+#[[ $(vmadm list -H -o uuid | grep f6d773b0-cc97-11e3-9d16-6fa215a110d1) ]] && failts "The VM f6d773b0-cc97-11e3-9d16-6fa215a110d1 is already created.";
+
+# Get manifest
+ts_image_mani_dir="$(dirname ${ts_image_file})";
+ts_image_mani="${ts_image_mani_dir}/${ts_image_fileb%.zfs.gz}.dsmanifest";
+ts_image_uuid=$(json -f ${ts_image_mani} -aH uuid);
+[[ $(imgadm list -H -o uuid | grep "${ts_image_uuid}") ]] && ts_image_imported="yes";
+
+printf "OK.\n";
+
+printf "%-60s" "* Importing ${ts_image_fileb} locally.."
+
+# Check if image is already imported and import if not
+if [[ ! $(imgadm list -H -o uuid | grep "${ts_image_uuid}") ]]; then
+	imgadm install -f ${ts_image_file} -m ${ts_image_mani} &> /dev/null || failts "There was an error importing the image.";
+	printf "OK.\n";
+else
+	printf "FOUND EXISTING.\n";
+fi
+
+#if [[ -z "${ts_image_imported}" ]] && { imgadm install -f ${ts_image_file} -m ${ts_image_mani} &> /dev/null || failts "There was an error importing the image."; }
+
+printf "%-60s" "* Creating a test VM of image ${ts_image_fileb%.zfs.gz}.."
+
+if [[ ! $(vmadm list -H -o uuid | grep f6d773b0-cc97-11e3-9d16-6fa215a110d1) ]]; then
+  # Create users block for json
+  for user in ${users}; do
+    ts_users_pw=$(apg -m 12 -M SCNL -n 1 -E \"\'@$%/*.:\\);
+    ts_json_users_snippet="${ts_json_users_snippet+${ts_json_users_snippet}, }\"${user}_pw\": \"${ts_users_pw}\"";
+  done
+
+cat > ${mi_reposdir}/${ts_image_repo}/tests/vm.json <<-EOF
+{
+  "zonename": "f6d773b0-cc97-11e3-9d16-6fa215a110d1",
+  "zonepath": "/zones/f6d773b0-cc97-11e3-9d16-6fa215a110d1",
+  "autoboot": true,
+  "brand": "joyent",
+  "limit_priv": "default",
+  "v": 1,
+  "image_uuid": "${ts_image_uuid}",
+  "cpu_shares": 32,
+  "zfs_io_priority": 40,
+  "max_lwps": 4000,
+  "max_physical_memory": 4096,
+  "max_locked_memory": 4096,
+  "max_swap": 8192,
+  "cpu_cap": 800,
+  "billing_id": "333814c2-b4a7-481f-9f86-73bb4122c7a3",
+  "owner_uuid": "c31f59cb-e4f8-4fe4-a0ab-99d4559786af",
+  "tmpfs": 4096,
+  "dns_domain": "local",
+  "archive_on_delete": true,
+  "resolvers": [
+    "8.8.8.8",
+    "8.8.4.4"
+  ],
+  "alias": "tsmartos-${ts_image_fileb%.zfs.gz}",
+  "nics": [
+    {
+      "interface": "net0",
+      "vlan_id": 1142,
+      "nic_tag": "external",
+      "gateway": "72.2.116.145",
+      "ip": "72.2.116.158",
+      "netmask": "255.255.255.240",
+      "network_uuid": "307d7cc8-7128-4b52-91d1-d8c1fe6e088e",
+      "primary": true
+    },
+    {
+      "interface": "net1",
+      "vlan_id": 1379,
+      "nic_tag": "internal",
+      "gateway": "10.112.22.177",
+      "ip": "10.112.22.190",
+      "netmask": "255.255.255.240",
+      "network_uuid": "6ff8106e-7e18-483d-9e2f-0a53b9d9d525"
+    }
+  ],
+  "uuid": "f6d773b0-cc97-11e3-9d16-6fa215a110d1",
+  "server_uuid": "44454c4c-3800-1058-8058-b4c04f355631",
+  "datacenter_name": "us-east-1",
+  "internal_metadata": {
+    ${ts_json_users_snippet}
+  },
+  "quota": 120
+}
+EOF
+
+	vmadm create -f ${mi_reposdir}/${ts_image_repo}/tests/vm.json &> /dev/null || failts "There was an error creating the VM.";
+	rm ${mi_reposdir}/${ts_image_repo}/tests/vm.json
+	printf "OK.\n";
+else
+	printf "FOUND EXISTING.\n";
+fi
+
+ts_imagenn="${name%-*}";
+ts_imagenv="${name##*-}";
+ts_imagebn="${base%-*}";
+ts_imagebv="${base#*-}";
+
+#ts_imagenn="${name%-*}";
+#ts_imagenv="${name#*-}";
+#ts_imagebn="${base%-*}";
+#ts_imagebv="${base#*-}";
+
+# Create documentation
+if [[ ${ts_opt_w} ]]; then
+	printf "%-60s" "* Creating documentation.."
+
+	ts_image_pkgsrcq=$(pfexec zlogin f6d773b0-cc97-11e3-9d16-6fa215a110d1 PATH=/usr/local/sbin:/usr/local/bin:/opt/local/sbin:/opt/local/bin:/usr/sbin:/usr/bin:/sbin "cat /opt/local/etc/pkg_install.conf" | awk -F/ '{ print $6 }');
+	ts_image_pkgsrcr=$(pfexec zlogin f6d773b0-cc97-11e3-9d16-6fa215a110d1 PATH=/usr/local/sbin:/usr/local/bin:/opt/local/sbin:/opt/local/bin:/usr/sbin:/usr/bin:/sbin "cat /opt/local/etc/pkg_install.conf" | awk -F= '{ print $2 }');
+
+	cat > ${ts_image_logdoc} <<-EOF
+h2. ${ts_imagenv} 
+
+|| Name | {{${ts_imagenn}}} |
+|| Description | ${description} |
+|| UUID | {{${ts_image_uuid}}} |
+|| Based on | [${ts_imagebn} ${ts_imagebv}|SmartMachine Base] |
+|| pkgsrc | [${ts_image_pkgsrcq}|${ts_image_pkgsrcr}]
+
+h3. What's New in This Image
+
+EOF
+
+gawk '/* / { print } /^$/ { exit }' ${mi_reposdir}/${ts_image_repo}/Changelog >> ${ts_image_logdoc}
+
+	cat >> ${ts_image_logdoc} <<-EOF
+
+h3. Software Included in This Image
+
+Software installed as pkgsrc packages:
+
+{code:lang=none}
+EOF
+	zlogin f6d773b0-cc97-11e3-9d16-6fa215a110d1 "PATH=/usr/local/sbin:/usr/local/bin:/opt/local/sbin:/opt/local/bin:/usr/sbin:/usr/bin:/sbin pkgin ls | cut -f 1 -d ' ' - | egrep \"^apache|^apt|^bash|^bzip2|^cassandra|^couchdb|^courier-imap|^curl|^cvs|^db4|^dpkg|^duo|^elasticsearch|^erlang|^flume|^gcc|^git|^gtar-base|^hadoop|^hbase|^hcatalog|^hive|^lighttpd|^mahout|^mailman|^mongodb|^mysql-client|^mysql-server|^mysql-cluster|^nginx|^nodejs|^oozie|^openssl|^perl|^php|^pig|^pkgin|^postfix|^postgresql|^procmail|^python|^quickbackup|^ruby|^scmgit-base|^smtools|^sqlite|^sqoop|^subversion|^sudo|^templeton|^tomcat|^unzip|^wget|^yum|^zip|^zoneinit|^zookeeper\"" >> ${ts_image_logdoc}
+
+	cat >> ${ts_image_logdoc} <<-EOF
+{code}
+
+Software installed as npm packages
+
+{code:lang=none}
+	EOF
+
+	zlogin f6d773b0-cc97-11e3-9d16-6fa215a110d1 "PATH=/usr/local/sbin:/usr/local/bin:/opt/local/sbin:/opt/local/bin:/usr/sbin:/usr/bin:/sbin npm ls -g | egrep \"jsontool@|manta@|smartdc@\"" | awk '{ print $2 }' >> ${ts_image_logdoc}
+
+	cat >> ${ts_image_logdoc} <<-EOF
+{code}
+
+{toggle-cloak:id=SmartOS-${ts_imagenn}-${ts_imagenv}}For a detailed list of every package installed with this image, click here.
+{cloak:id=SmartOS-${ts_imagenn}-${ts_imagenv}}
+{code:lang=none}
+	EOF
+
+	zlogin f6d773b0-cc97-11e3-9d16-6fa215a110d1 "PATH=/usr/local/sbin:/usr/local/bin:/opt/local/sbin:/opt/local/bin:/usr/sbin:/usr/bin:/sbin pkgin ls" >> ${ts_image_logdoc}
+	
+	cat >> ${ts_image_logdoc} <<-EOF
+{code}
+{cloak}
+	EOF
+
+	printf "OK.\n";
+fi
+
+printf "%-60s" "* Creating ${ts_image_repo}/tests/properties.yml.."
+
+# Set server spec instance and base variables
+ts_image_sspec="0cfebdfc-97c9-c6db-cad4-bb99b90a6a8e";
+
+# Create properties.yml
+cat > ${mi_reposdir}/${ts_image_repo}/tests/properties.yml <<-EOF
+${ts_imagenn}-${ts_imagenv}:
+  :roles:
+    - base-common
+    - ${ts_imagenn}
+  :name: ${ts_imagenn}
+  :version: ${ts_imagenv}
+  :base_name: ${ts_imagebn}
+  :base_version: ${ts_imagebv}
+  :doc_url: ${homepage}
+EOF
+
+printf "OK.\n";
+
+printf "%-60s" "* Copying ${ts_image_repo}/tests into serverspec VM.."
+
+rm -rf /zones/${ts_image_sspec}/root/root/* &> /dev/null
+cp -rf ${mi_reposdir}/${ts_image_repo}/tests/* /zones/${ts_image_sspec}/root/root &> /dev/null || failts "There was an error copying tests into serverspec VM.";
+
+printf "OK.\n";
+
+printf "%-60s" "* Configuring serverspec for testing.."
+
+cat > /zones/${ts_image_sspec}/root/root/.ssh/config <<-EOF
+Host ${ts_imagenn}-${ts_imagenv}
+  HostName 72.2.116.158
+  User root
+EOF
+rm /zones/${ts_image_sspec}/root/root/.ssh/known_hosts &> /dev/null || true
+
+printf "OK.\n";
+
+printf "%-60s" "* Running rake serverspec.."
+
+ts_image_result=$(zlogin ${ts_image_sspec} PATH=/usr/local/sbin:/usr/local/bin:/opt/local/sbin:/opt/local/bin:/usr/sbin:/usr/bin:/sbin rake serverspec --trace &> ${ts_image_logall} || echo $?);
+
+# If detected a failure
+if [[ ${ts_image_result} ]]; then
+	if [[ ! ${ts_opt_d} ]]; then
+		vmadm delete f6d773b0-cc97-11e3-9d16-6fa215a110d1 &> /dev/null
+		imgadm delete ${ts_image_uuid} &> /dev/null
+	else
+		ts_message="\n\n! VM deletion was not done.  To clean up you'll need to:\n! # pfexec vmadm delete f6d773b0-cc97-11e3-9d16-6fa215a110d1\n! # pfexec imgadm delete ${ts_image_uuid}";
+	fi
+
+	ts_image_fails=$(egrep "examples, [0-9][0-9]? failure" ${ts_image_logall} | awk '{ print $3 }') || ts_image_fails="1";
+	failts "There was ${ts_image_fails} failure(s) running rake serverspec.\n! See ${ts_image_logall}.$ts_message";
+fi
+
+printf "OK.\n";
+
+
+# Clean up test image VM and imgadm delete image
+if [[ ! ${ts_opt_d} ]]; then
+	vmadm delete f6d773b0-cc97-11e3-9d16-6fa215a110d1 &> /dev/null
+	imgadm delete ${ts_image_uuid} &> /dev/null
+else
+	ts_message="\n\nVM deletion was not done.  To clean up you'll need to:\n# pfexec vmadm delete f6d773b0-cc97-11e3-9d16-6fa215a110d1\n# pfexec imgadm delete ${ts_image_uuid}";
+fi
+
+printf "\nTesting completed for ${ts_image_fileb%.zfs.gz} with 0 failures.\nSee ${ts_image_logall}.$ts_message\n\n";

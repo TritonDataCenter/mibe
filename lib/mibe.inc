@@ -7,6 +7,11 @@ failtest() {
 	zone_cleanup_sighandler;
 	exit 1;
 }
+failts() {
+	printf "ERROR.\n\n! $*\n\n" >&2;
+	exit 1;
+}
+
 get_reposdir() {
 	[[ "${HOME}" = "${mi_home}/users/${LOGNAME}" ]] && mi_reposdir="${mi_home}/users/${LOGNAME}" || mi_reposdir="${mi_home}/repos";
 }
@@ -57,9 +62,7 @@ populate_smartos() {
 
 	# Create Changelog
 	cat > ${mi_reposdir}/${mi_repo}/Changelog <<-EOF
-	# Changelog for ${mi_repo}
-
-	${mi_image}-1.0.0
+	${mi_image}-x.x.x
 	* Change1
 	* Change2
 	* etc
@@ -67,13 +70,33 @@ populate_smartos() {
 
 	# Create manifest
 	cat > ${mi_reposdir}/${mi_repo}/manifest <<-EOF
-	name="${mi_image}"
+	# Name of the image and version
+	name="${mi_image}-x.x.x"
+
+	# Build image to use for base of the image.  This image must
+	# already exist in the ZFS hierarchy.
+	base="base-x.x.x"
+
+	# Organization name (implanted in motd and product)
 	organization="Joyent"
+
+	# Brand name (implanted in motd and product)
 	brand="Instance"
-	version="1.0.0"
+
+	# Description of the image
 	description="Description for image ${mi_image}"
+
+	# Homepage specific to the image
 	homepage="http://wiki.joyent.com/jpc2/${mi_image}+Instance"
-	users="root admin"
+
+	# Metadata users to be created (not real users created)
+	users=""
+
+	# Role of image (database, loadbalancer, development, hadoop, other, os)
+	role="development"
+
+	# Minimum amount of ram needed
+	minram=""
 	EOF
 
 	# Create customize
@@ -130,6 +153,54 @@ populate_smartos() {
 	htop
 	EOF
 
+	# Create serverspec test files
+	mkdir -p ${mi_reposdir}/${mi_repo}/tests/spec/${mi_image}
+
+	cat > ${mi_reposdir}/${mi_repo}/tests/Rakefile <<-EOF
+	require 'rake'
+	require 'rspec/core/rake_task'
+	require 'yaml'
+
+	properties = YAML.load_file('properties.yml')
+
+	desc "Run serverspec to all hosts"
+	task :serverspec => 'serverspec:all'
+
+	namespace :serverspec do
+	  task :all => properties.keys.map {|key| 'serverspec:' + key.split('.')[0] }
+	  properties.keys.each do |key|
+	    desc "Run serverspec to #{key}"
+	    RSpec::Core::RakeTask.new(key.split('.')[0].to_sym) do |t|
+	      ENV['TARGET_HOST'] = key
+	      t.pattern = 'spec/{' + properties[key][:roles].join(',') + '}/*_spec.rb'
+	    end
+	  end
+	end
+	EOF
+
+	cat > ${mi_reposdir}/${mi_repo}/tests/spec/spec_helper.rb <<-EOF
+	require 'serverspec'
+	require 'pathname'
+	require 'net/ssh'
+	require 'yaml'
+
+	include Serverspec::Helper::Ssh
+	include Serverspec::Helper::DetectOS
+	include Serverspec::Helper::Properties
+
+	properties = YAML.load_file('properties.yml')
+
+	RSpec.configure do |c|
+	  c.host  = ENV['TARGET_HOST']
+	  set_property properties[c.host]
+	  options = Net::SSH::Config.for(c.host)
+	  user    = options[:user] || Etc.getlogin
+	  c.ssh   = Net::SSH.start(c.host, user, options)
+	  c.os    = backend.check_os
+	  #c.path  = '/usr/local/sbin:/usr/local/bin:/opt/local/sbin:/opt/local/bin:/usr/sbin:/usr/bin:/sbin'
+	end
+	EOF
+
 	echo "* Done.";
 }
 init_repo() {
@@ -139,7 +210,7 @@ init_repo() {
 
 	git add .
 	git commit -m "Initial commit from $0" 1> /dev/null || fail "* ERROR - Couldn't git commit files to ${mi_reposdir}/${mi_repo}.";
-	git remote add origin ${mi_gitserver}:${mi_repo}.git 1> /dev/null || fail "* ERROR - Couldn't git remote add origin to ${mi_gitserver}:${mi_repo}.git";
+	git remote add origin ${mi_gitserver}:${mi_repo} 1> /dev/null || fail "* ERROR - Couldn't git remote add origin to ${mi_gitserver}:${mi_repo}.git";
 	git push origin master 1> /dev/null || fail "* ERROR - Couldn't push files to ${mi_reposdir}/${mi_gitserver}:${mi_repo}.git";
 
 	echo "* Done.";
@@ -147,17 +218,21 @@ init_repo() {
 get_vars() {
 	mi_time=$(date +%Y-%m-%d_%H-%M-%S);
 	mi_bzonet=$(echo ${mi_bzone:0:18});
-	mi_bfinal_dump="${mi_home}/images/${name}-${version}.zfs.gz";
-	mi_bfinal_manifest="${mi_home}/images/${name}-${version}.dsmanifest";
-	mi_bfinal_snap="zones/${name}-${version}@final";
-	mi_bimage_snap="zones/${mi_bimage}@${name}-${version}";
-	mi_bzone_tplate="zones/${name}-${version}";
+	mi_bfinal_dump="${mi_home}/images/${name}.zfs.gz";
+	mi_bfinal_manifest="${mi_home}/images/${name}.dsmanifest";
+	mi_bfinal_snap="zones/${name}@final";
+	mi_bimage_snap="zones/${base}@${name}";
+	mi_bzone_tplate="zones/${name}";
 	mi_brepo_path="${mi_reposdir}/${mi_brepo}";
-	mi_bzone_logall="${mi_home}/logs/${name}-${version}-${mi_time}-all.log";
-	mi_bzone_logerr="${mi_home}/logs/${name}-${version}-${mi_time}-error.log";
+	mi_bzone_logall="${mi_home}/logs/${name}-${mi_time}-all.log";
+	mi_bzone_logerr="${mi_home}/logs/${name}-${mi_time}-error.log";
+	mi_imagenn="${name%-*}";
+	mi_imagenv="${name##*-}";
+	mi_imagebn="${base%-*}";
+	mi_imagebv="${base#*-}";
 }
 build_sanitycheck() {
-	printf "\n%-70s" "* Sanity checking build files and environment..";
+	printf "\n%-60s" "* Sanity checking build files and environment..";
 
 	# Check that the build zone mi_bzone exists
 	[[ $(zoneadm -z ${mi_bzone} list &> /dev/null)$? -ne 0 ]] && failtest "Build zone ${mi_bzone} doesn\'t exist.";
@@ -179,7 +254,7 @@ build_sanitycheck() {
 	[[ -d "${mi_brepo}" ]] || [[ -d "${mi_reposdir}/${mi_brepo}" ]] || failtest "Build repository ${mi_brepo} doesn\'t exist.";
 
 	# Check that build repository manifest mi_brepo/manifest exists
-	[[ -f "${mi_brepo}/manifest" ]] && source ${mi_brepo}/manifest || [[ -f "${mi_reposdir}/${mi_brepo}/manifest" ]] && source ${mi_reposdir}/${mi_brepo}/manifest || failtest "A build repository manifest ${mi_brepo}/manifest doesn't exist.\n! A build repository with proper build files must exist for an\n! image to be built.  See https://github.com:joyent/mi-example\n";	
+	[[ -f "${mi_brepo}/manifest" ]] && source ${mi_brepo}/manifest || { [[ -f "${mi_reposdir}/${mi_brepo}/manifest" ]] && source ${mi_reposdir}/${mi_brepo}/manifest || failtest "A build repository manifest ${mi_brepo}/manifest doesn't exist.\n! A build repository with proper build files must exist for an\n! image to be built.  See https://github.com:joyent/mi-example\n"; }
 
 	# Check that build repository customize mi_brepo/customize exists
 	[[ -f "${mi_brepo}/customize" ]] || [[ -f "${mi_reposdir}/${mi_brepo}/customize" ]] || failtest "A build repository customize ${mi_brepo}/customize doesn\'t exist.\n! A build repository with proper build files must exist for an\n! image to be built.  See https://github.com:joyent/mi-example\n";
@@ -190,8 +265,8 @@ build_sanitycheck() {
 	# Check that final build image file doesn't already exist
 	[[ -f "${mi_bfinal_dump}" ]] && failtest "Build image ${mi_bfinal_dump} already exists\n! Nothing to do.";
 
-	# Check if base image mi_bimage exists
-	[[ $(zfs list -Ho name -t filesystem zones/${mi_bimage} &> /dev/null)$? -ne 0 ]] && failtest "Base image zones/${mi_bimage} doesn't exist.";
+	# Check if base image exists zones/name-version
+	[[ $(zfs list -Ho name -t filesystem zones/${base} &> /dev/null)$? -ne 0 ]] && failtest "Base image zones/${base} doesn't exist.";
 
 	# Check if mi_bimage_snap exists
 	[[ $(zfs list -Ho name -t snapshot ${mi_bimage_snap} &> /dev/null)$? -eq 0 ]] && failtest "Base image snapshot ${mi_bimage_snap} already exists.";
@@ -209,7 +284,7 @@ zone_backup_zonepath() {
 	|| zonecfg -z ${mi_bzone} "select attr name=mi-zpath; set value=\"${mi_bzone_oldpath}\"; end" &> /dev/null;
 }
 zone_halt() {
-	printf "%-70s" "* Halting build zone (${mi_bzonet})..";
+	printf "%-60s" "* Halting build zone (${mi_bzonet})..";
 	zoneadm -z ${mi_bzone} halt &> /dev/null || failtest "Unable to halt zone ${mi_bzone}";
 
 	zone_timeout="30";
@@ -225,7 +300,7 @@ zone_halt() {
 	printf "OK.\n";
 }
 zone_configure_buildzone() {
-	printf "%-70s" "* Configuring build zone (${mi_bzonet}) to be imaged..";
+	printf "%-60s" "* Configuring build zone (${mi_bzonet})..";
 
 	# Unmount cores filesystem zones/cores/mi_bzone from build zone mi_bzone
 	zfs unmount zones/cores/${mi_bzone} || failtest "Unable to unmount zones/cores/${mi_bzone}.";
@@ -272,7 +347,7 @@ zone_copyin_files() {
 	IFS=$(echo -en "\n\b");
 	mi_bzone_copydirs=$(ls -d ${mi_brepo_path}/copy/*/ 2>/dev/null || true);
 	if [[ ! -z ${mi_bzone_copydirs} ]]; then
-		printf "%-70s" "* Copying in ${mi_brepo}/copy files..";
+		printf "%-60s" "* Copying in ${mi_brepo}/copy files..";
 
 		(cd ${mi_brepo_path}/copy && gtar -c . | gtar -C /${mi_bzone_tplate}/root -x);
 		for mi_bzone_copydir in ${mi_bzone_copydirs[@]}; do
@@ -287,7 +362,7 @@ zone_copyin_files() {
 	IFS=${OLDIFS};
 }
 zone_boot() {
-	printf "%-70s" "* Booting build zone (${mi_bzonet})..";
+	printf "%-60s" "* Booting build zone (${mi_bzonet})..";
 
 	zoneadm -z ${mi_bzone} boot &> /dev/null || failtest "Unable to boot ${mi_bzone}.";
 
@@ -305,40 +380,37 @@ zone_boot() {
 }
 zone_create_motdproduct() {
         if [[ -f "/${mi_brepo_path}/motd" ]]; then
-		printf "%-70s" "* Creating image motd and product file..";
+		printf "%-60s" "* Creating image motd and product file..";
                 sed -e "s!%brand%!${brand}!g" \
-                    -e "s!%name%!${name}!g" \
-                    -e "s!%version%!${version}!g" \
+                    -e "s!%name%!${mi_imagenn}!g" \
+                    -e "s!%version%!${mi_imagenv}!g" \
                     -e "s!%homepage%!${homepage}!g" /${mi_brepo_path}/motd > /${mi_bzone_tplate}/root/etc/motd
-		mi_bimaget=$(echo ${mi_bimage} | sed 's/-/ /g');
 
 		cat > /${mi_bzone_tplate}/root/etc/product <<-EOF
 		Name: ${organization} ${brand}
-		Image: ${name} ${version}
-		Base Image: ${mi_bimaget}
+		Image: ${mi_imagenn} ${mi_imagenv}
+		Base Image: ${mi_imagebn} ${mi_imagebv}
 		Documentation: ${homepage}
+		Description: ${description}
 		EOF
-
 	else
-		printf "%-70s" "* Creating image product file..";
-
-		mi_bimaget=$(echo ${mi_bimage} | sed 's/-/ /g');
+		printf "%-60s" "* Creating image product file..";
 
 		cat > /${mi_bzone_tplate}/root/etc/product <<-EOF
 		Name: ${organization} ${brand}
-		Image: ${name} ${version}
-		Base Image: ${mi_bimaget}
+		Image: ${mi_imagenn} ${mi_imagenv}
+		Base Image: ${mi_imagebn} ${mi_imagebv}
 		Documentation: ${homepage}
+		Description: ${description}
 		EOF
-
         fi
 
 	printf "OK.\n";
 }
 zone_install_packages() {
 	# First run pkgin update
-	mi_bzone_result=$(zlogin ${mi_bzone} PATH=/opt/local/bin:/opt/local/sbin:/usr/bin:/usr/sbin \
-            touch /opt/local/.dlj_license_accepted; pkgin -f -y up 2>&1 >> ${mi_bzone_logall} \
+	mi_bzone_result=$(zlogin ${mi_bzone} 'PATH=/opt/local/bin:/opt/local/sbin:/usr/bin:/usr/sbin \
+            touch /opt/local/.dlj_license_accepted; pkgin -f -y up 2>&1' >> ${mi_bzone_logall} \
             | tee -a ${mi_bzone_logall} >> ${mi_bzone_logerr} || echo $?);
 
 	[[ ! ${mi_bzone_result} ]] || failtest "Unable to update pkgin list.";
@@ -350,9 +422,9 @@ zone_install_packages() {
 		mi_bzone_packages=(${mi_bzone_packagesr[@]/\#*/});
 
 		if [[ ! -z "${mi_bzone_packages}" ]]; then
-			printf "%-70s" "* Installing packages list..";
+			printf "%-60s" "* Installing packages list..";
 
-			echo "pkgadd -v ${mi_bzone_packages[@]}" >> ${mi_bzone_logall}
+			echo "pkg_add -v ${mi_bzone_packages[@]}" >> ${mi_bzone_logall}
 
 			mi_bzone_result=$(zlogin ${mi_bzone} \
 			  PATH=/opt/local/bin:/opt/local/sbin:/usr/bin:/usr/sbin \
@@ -366,12 +438,12 @@ zone_install_packages() {
 }
 zone_exec_customize() {
 	if [[ -f "${mi_brepo_path}/customize" ]]; then
-		printf "%-70s" "* Executing the customize file..";
+		printf "%-60s" "* Executing the customize file..";
 
 		cp /${mi_brepo_path}/customize /${mi_bzone_tplate}/root/root
 		chmod +x /${mi_bzone_tplate}/root/root/customize
 
-		mi_bzone_result=$(zlogin ${mi_bzone} /root/customize 2>&1 >> ${mi_bzone_logall} \
+		mi_bzone_result=$(zlogin ${mi_bzone} 'bash -v /root/customize 2>&1' >> ${mi_bzone_logall} \
 		  | tee -a ${mi_bzone_logall} >> ${mi_bzone_logerr} || echo $?);
 
 		[[ ! ${mi_bzone_result} ]] && printf "OK.\n" || failtest "There was an error during execution of the customize file.\n! See ${mi_bzone_logerr}.";
@@ -416,7 +488,7 @@ zone_cleanup_sighandler() {
 	exit 1;
 }
 zone_create_dumpmanifest() {
-	printf "%-70s" "* Creating image file and manifest..";
+	printf "%-60s" "* Creating image file and manifest..";
 
 	zfs send ${mi_bzone_tplate}@final 2> /dev/null | gzip -9 > ${mi_bfinal_dump} || failtest "Unable to zfs dump ${mi_bfinal_dump}.";
 
@@ -479,8 +551,8 @@ sed '/^[[:blank:]]*$/d' <<-EOF > ${mi_bfinal_manifest}
   "v": "2",
   "uuid": "${mi_manifest_uuid}",
   "owner": "${mi_manifest_owneruuid}",
-  "name": "${name}",
-  "version": "${version}",
+  "name": "${mi_imagenn}",
+  "version": "${mi_imagenv}",
   "state": "active",
   "disabled": false,
   "public": false,
@@ -503,13 +575,13 @@ sed '/^[[:blank:]]*$/d' <<-EOF > ${mi_bfinal_manifest}
   ${mi_manifest_users_block}
   ${mi_manifest_role_block}
   ${mi_manifest_billingtags_block}
- "urn": "sdc:sdc:${name}:${version}"
+  "urn": "sdc:sdc:${mi_imagenn}:${mi_imagenv}"
 }
 EOF
 	printf "OK.\n\n";
 }
 zone_unconfigure_buildzone() {
-	printf "%-70s" "* Un-configuring build zone (${mi_bzonet})..";
+	printf "%-60s" "* Un-configuring build zone (${mi_bzonet})..";
 	
 	# Detach existing dataset from build zone mi_bzone
 	zoneadm -z ${mi_bzone} detach &> /dev/null || failtest "Unable to detach dataset from ${mi_bzone}.";
