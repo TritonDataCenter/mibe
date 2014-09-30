@@ -1,0 +1,33 @@
+#!/bin/bash
+#
+# Creates .iso file for repos after commit.
+# This script is usually called by me-<reponame>/.git/hooks/post-commit
+#
+# Copyright (c) 2013 Joyent Inc., All rights reserved.
+
+usage() {
+cat << EOF
+
+Usage: $0 DIRECTORY REPO
+
+Arguments:
+    
+    DIRECTORY		Directory where files exist to make iso from.
+    REPO		Name of git repository. eg: mi-percona
+
+EOF
+exit 1;
+}
+
+[[ $# != 2 ]] && usage;
+PATH="/home/mibe/bin:/opt/local/bin:/opt/local/sbin:/usr/bin:/usr/sbin";
+[[ ! -d $1 ]] && echo "* ERROR - ${MI_DIR} doesn't exist.";
+DATE=$(date +%Y%m%d);
+MI_DIR=$1;
+MI_REPO=$2;
+
+
+echo "* Creating ${MI_DIR}/${MI_REPO}-${DATE}.iso.";
+mkisofs -J -R -input-charset iso8859-1 -V "${MI_REPO} ${DATE}" -m '.*' -o ${MI_DIR}/${MI_REPO}-${DATE}.iso ${MI_DIR} > /dev/null 2>&1
+[[ $? -ne 0 ]] && echo "* ERROR - There was an error creating ${MI_REPO}-${DATE}.iso." && exit 1;
+echo "* Done.";

@@ -1,0 +1,29 @@
+#!/bin/bash
+#
+# git clones all repositories listed in mi_home/etc/repos.list
+# from git server listed in mi_home/etc/repos.conf.
+#
+# Copyright (c) 2013 Joyent Inc., All rights reserved.
+
+set -o errexit
+set -o pipefail
+set -o nounset
+#set -o xtrace
+
+# Set mi_home and source mi_home/lib/mibe.inc if exists
+mi_home=$(dirname $(cd ${0%/*} && pwd -P));
+[[ -s "${mi_home}/lib/mibe.inc" ]] && source ${mi_home}/lib/mibe.inc || { echo "* ERROR - ${mi_home}/lib/mibe.inc not found, can't continue."; exit 1; }
+
+# Get git server and repos list
+get_gitserverlocal;
+IFS=$'\n'
+get_reposlistlocal;
+get_reposdir;
+
+# Clone repositories in repos_local.list
+for i in ${mi_reposlist[@]}; do
+	[[ "${i}" =~ ^# ]] && continue;
+	[[ -d "${mi_reposdir}/${i}" ]] && echo "* ${i} already exists, skipping." && continue;
+	echo "* Cloning ${mi_gitserver}/${i} into ${i}..";
+	git clone ${mi_gitserver}:${i}.git ${mi_reposdir}/${i} || echo "* ERROR - Couldn't clone ${mi_gitserver}/${i}.git.";
+done

@@ -1,0 +1,136 @@
+#!/bin/bash
+#
+# This script populates standard build files into
+# a repository and commits to git (if option specified).
+#
+# Copyright (c) 2013 Joyent Inc., All rights reserved.
+
+set -o errexit
+set -o pipefail
+#set -o nounset
+#set -o xtrace
+
+usage() {
+	cat <<- EOF >&2
+
+	Usage: $0 [options] TYPE REPOSITORY
+
+	Arguments:
+    
+        TYPE              Type of build repository to initialize.
+                          Supported types: smartos
+    	REPOSITORY        Name of build repository to initialize.
+       	                  eg: mi-percona
+
+	Options:
+   
+        -g                Git support.  Assumes your repository is already created
+                          on the server and creates/commits the intial files.
+
+	EOF
+
+	exit 1;
+}
+
+while getopts "g" OPTION; do
+        case $OPTION in
+                g)	opt_g="true";	;;
+                *)	usage;		;;
+        esac
+done
+
+shift $(($OPTIND - 1))
+if [[ $# = 2 ]]; then
+        mi_type="$1";
+        mi_repo="$2";
+else
+        usage;
+fi
+
+[[ ${mi_type} != "smartos" ]] && usage;
+
+# Set mi_home and source mi_home/lib/mibe.inc if exists
+mi_home=$(dirname $(cd ${0%/*} && pwd -P));
+[[ -s "${mi_home}/lib/mibe.inc" ]] && source ${mi_home}/lib/mibe.inc || { echo "* ERROR - ${mi_home}/lib/mibe.inc not found,
+ can't continue."; exit 1; }
+
+populate_smartos() {
+	echo "* Populating ${mi_reposdir}/${mi_repo} SmartOS repository with build (tpl) files..";
+        [[ -d "${mi_reposdir}/${mi_repo}" ]] && fail "* ERROR - ${mi_reposdir}/${mi_repo} already exists.";
+	mkdir ${mi_reposdir}/${mi_repo} &> /dev/null || fail "* ERROR - Couldn't create directory ${mi_reposdir}/${mi_repo}.";
+
+	# Create standard tpl Changelog
+	cat > ${mi_reposdir}/${mi_repo}/Changelog <<-EOF
+	# Changelog for ${mi_repo}
+
+	${mi_image}-1.0.0
+	* Change1
+	* Change2
+	* etc
+	EOF
+
+	# Create standard tpl manifest
+	cat > ${mi_reposdir}/${mi_repo}/manifest <<-EOF
+	name="${mi_image}"
+	product="Joyent Instance"
+	version="1.0.0"
+	description="Description for image ${mi_image}"
+	homepage="http://wiki.joyent.com/jpc2/Joyent+${mi_image}+SmartMachine"
+	users="root admin"
+	EOF
+
+	# Create standard tpl customize
+	mkdir -p ${mi_reposdir}/${mi_repo}/copy/root &> /dev/null || fail "* ERROR - Couldn't create directory ${mi_reposdir}/${mi_repo}/copy/root.";
+	cat > ${mi_reposdir}/${mi_repo}/copy/root/customize <<-EOF
+	#!/usr/bin/bash
+	PATH=/opt/local/gnu/bin:/opt/local/bin:/opt/local/sbin:/usr/xpg4/bin:/usr/bin:/usr/sbin:/usr/sfw/bin
+
+	# Exit if any commands fail
+	set -o errexit
+
+	# Install standard packages
+	echo "* Installing standard packages.";
+	touch /opt/local/.dlj_license_accepted
+	pkgin -f -y update
+	pkg_delete -v nodejs smtools
+	pkg_add -v nodejs smtools dtracetools htop
+	npm install smartdc -g
+	npm install jsontool -g
+
+	# Install image specific packages
+	echo "* Installing image specific packages.";
+
+	# Configuring image specific packages
+	echo "* Configuring image specific packages.";
+
+	# Clean up
+	echo "* Cleaning up."
+	rm -rf /root/*
+
+	sm-prepare-image -y
+	EOF
+
+	# Create standard tpl var/zoneinit/includes
+	mkdir -p ${mi_reposdir}/${mi_repo}/copy/var/zoneinit/includes &> /dev/null || fail "* ERROR - Couldn't create directory ${mi_reposdir}/${mi_repo}/copy/var/zoneinit/includes.";
+
+	echo "* Done.";
+}
+
+initrepo() {
+	echo "* Initializing repository ${mi_repo} at ${mi_reposdir}/${mi_repo}..";
+	cd ${mi_reposdir}/${mi_repo} 
+	git init 1> /dev/null || fail "* ERROR - Couldn't git init repository at ${mi_reposdir}/${mi_repo}.";
+
+	git add .
+	git commit -m "Initial commit from $0" 1> /dev/null || fail "* ERROR - Couldn't git commit files to ${mi_reposdir}/${mi_repo}.";
+	git remote add origin ${mi_gitserver}:${mi_repo}.git 1> /dev/null || fail "* ERROR - Couldn't git remote add origin to ${mi_gitserver}:${mi_repo}.git";
+	git push origin master 1> /dev/null || fail "* ERROR - Couldn't push files to ${mi_reposdir}/${mi_gitserver}:${mi_repo}.git";
+
+	echo "* Done.";
+}
+
+mi_image=$(echo ${mi_repo} | sed 's/mi-//g');
+get_reposdir;
+get_gitserverlocal;
+populate_smartos;
+[[ ! -z ${opt_g} ]] && initrepo;
