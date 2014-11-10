@@ -49,9 +49,9 @@ get_reposdir;
 if [[ ${opt_a} ]]; then
 	source ${mi_reposdir}/mi-steelapp/manifest
 	mi_imagenv="${name##*-}";
-#	stm_models=(2000M-SAF-STX);
+	stm_models=(1000M);
 #	stm_models=(1000M-SAF 2000L 2000L-SAF 4000L 500L-10 500M-200 2000L-STX 2000L-SAF-STX 2000M-STX 2000M-SAF-STX);
-	stm_models=(1000H 1000M 1000M-SAF 2000L 2000L-SAF 4000L 500L-10 500M-200 2000L-STX 2000L-SAF-STX 2000M-STX 2000M-SAF-STX);
+#	stm_models=(1000H 1000M 1000M-SAF 2000L 2000L-SAF 4000L 500L-10 500M-200 2000L-STX 2000L-SAF-STX 2000M-STX 2000M-SAF-STX);
 #	stm_models=(2000M-STX 2000M-SAF-STX);
 	for i in ${stm_models[@]}; do
 		# Modify manifest file to each Model
