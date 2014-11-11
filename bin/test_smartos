@@ -2,7 +2,7 @@
 #
 # test_smartos - Image tester for SmartOS images
 #
-# Copyright (c) 2013 Joyent Inc., All rights reserved.
+# Copyright (c) 2014 Joyent Inc., All rights reserved.
 
 set -o errexit
 set -o pipefail
@@ -19,9 +19,6 @@ usage() {
 	Usage: $0 [options] IMAGE_FILE IMAGE_REPO
 
 	Options:
-
-	       -d              Don't delete test image VM after running tests.  For now 
-	                       the test VM is always f6d773b0-cc97-11e3-9d16-6fa215a110d1.
 
 	       -w              Create wiki documentation for image. 
 
@@ -40,11 +37,8 @@ usage() {
         exit 1;
 }
 
-while getopts "dw" OPTION; do
+while getopts "w" OPTION; do
         case $OPTION in
-                d)
-                        ts_opt_d="yes";
-                        ;;
                 w)
                         ts_opt_w="yes";
                         ;;
@@ -66,6 +60,19 @@ ts_version="1.0.0";
 # Set mi_home and source mi_home/lib/mibe.inc if exists
 mi_home=$(dirname $(cd ${0%/*} && pwd -P));
 [[ -s "${mi_home}/lib/mibe.inc" ]] && source ${mi_home}/lib/mibe.inc || { echo "* ERROR - ${mi_home}/lib/mibe.inc not found, can't continue.";exit 1; }
+
+test_cleanup_sighandler() {
+	ts_image_mani_dir="$(dirname ${ts_image_file})";
+	ts_image_mani="${ts_image_mani_dir}/${ts_image_fileb%.zfs.gz}.dsmanifest";
+	ts_image_uuid=$(json -f ${ts_image_mani} -aH uuid);
+
+	printf "\n* Cleaning up..\n\n";
+
+	vmadm delete f6d773b0-cc97-11e3-9d16-6fa215a110d1 &> /dev/null
+	imgadm delete ${ts_image_uuid} &> /dev/null
+}
+
+trap test_cleanup_sighandler INT TERM;
 
 # Get repository directory
 get_reposdir;
@@ -305,28 +312,20 @@ printf "%-60s" "* Running rake serverspec.."
 
 ts_image_result=$(zlogin ${ts_image_sspec} PATH=/usr/local/sbin:/usr/local/bin:/opt/local/sbin:/opt/local/bin:/usr/sbin:/usr/bin:/sbin rake serverspec --trace &> ${ts_image_logall} || echo $?);
 
-# If detected a failure
-if [[ ${ts_image_result} ]]; then
-	if [[ ! ${ts_opt_d} ]]; then
-		vmadm delete f6d773b0-cc97-11e3-9d16-6fa215a110d1 &> /dev/null
-		imgadm delete ${ts_image_uuid} &> /dev/null
-	else
-		ts_message="\n\n! VM deletion was not done.  To clean up you'll need to:\n! # pfexec vmadm delete f6d773b0-cc97-11e3-9d16-6fa215a110d1\n! # pfexec imgadm delete ${ts_image_uuid}";
-	fi
+# If not detect a failure
+if [[ ! ${ts_image_result} ]]; then
+	printf "OK.\n";
 
-	ts_image_fails=$(egrep "examples, [0-9][0-9]? failure" ${ts_image_logall} | awk '{ print $3 }') || ts_image_fails="1";
-	failts "There was ${ts_image_fails} failure(s) running rake serverspec.\n! See ${ts_image_logall}.$ts_message";
-fi
+	printf "%-60s" "* Cleaning up.."
 
-printf "OK.\n";
-
-
-# Clean up test image VM and imgadm delete image
-if [[ ! ${ts_opt_d} ]]; then
 	vmadm delete f6d773b0-cc97-11e3-9d16-6fa215a110d1 &> /dev/null
 	imgadm delete ${ts_image_uuid} &> /dev/null
+
+	printf "OK.\n";
 else
-	ts_message="\n\nVM deletion was not done.  To clean up you'll need to:\n# pfexec vmadm delete f6d773b0-cc97-11e3-9d16-6fa215a110d1\n# pfexec imgadm delete ${ts_image_uuid}";
+	ts_message="\n\n! VM deletion was not done.  To clean up you'll need to either:\n!\n! Fix the error and re-run the script so it will clean up.\n!\n! Or manually clean up with:\n!\n! # pfexec vmadm delete f6d773b0-cc97-11e3-9d16-6fa215a110d1\n! # pfexec imgadm delete ${ts_image_uuid}";
+	ts_image_fails=$(egrep "examples, [0-9][0-9]? failure" ${ts_image_logall} | awk '{ print $3 }') || ts_image_fails="1";
+	failts "There was ${ts_image_fails} failure(s) running rake serverspec.\n! See ${ts_image_logall}.$ts_message";
 fi
 
 printf "\nTesting completed for ${ts_image_fileb%.zfs.gz} with 0 failures.\nSee ${ts_image_logall}.$ts_message\n\n";
