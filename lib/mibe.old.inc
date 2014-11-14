@@ -196,7 +196,6 @@ init_repo() {
 }
 get_vars() {
 	mi_time=$(date +%Y-%m-%d_%H-%M-%S);
-	mi_bzone=$(json -f ${mi_home}/etc/vm.json -aH uuid);
 	mi_bzonet=$(echo ${mi_bzone:0:18});
 	mi_bfinal_dump="${mi_home}/images/${name}.zfs.gz";
 	mi_bfinal_manifest="${mi_home}/images/${name}.dsmanifest";
@@ -215,25 +214,19 @@ build_sanitycheck() {
 	printf "\n%-60s" "* Sanity checking build files and environment..";
 
 	# Check that the build zone mi_bzone exists
-#	[[ $(zoneadm -z ${mi_bzone} list &> /dev/null)$? -ne 0 ]] && failtest "Build zone ${mi_bzone} doesn\'t exist.";
-
-	# Check that the build zone configuration exists etc/vm.json
-	[[ -f "${mi_home}/etc/vm.json" ]] || failtest "Build zone json ${mi_home}/etc/vm.json doesn\'t exist.";
-
+	[[ $(zoneadm -z ${mi_bzone} list &> /dev/null)$? -ne 0 ]] && failtest "Build zone ${mi_bzone} doesn\'t exist.";
 	# Check if build zone mi_bzone is a SmartOS zone
-#	[[ $(zoneadm -z ${mi_bzone} list -p 2> /dev/null | awk -F: '{ print $6 }') = "kvm" ]] && failtest "Build zone ${mi_bzone} must be a SmartOS zone.";
+	[[ $(zoneadm -z ${mi_bzone} list -p 2> /dev/null | awk -F: '{ print $6 }') = "kvm" ]] && failtest "Build zone ${mi_bzone} must be a SmartOS zone.";
 
 	# Check that we have privileges to do things
-	[[ "$(id -u)" = "0" ]] || failtest "Don't have proper privileges to continue.";
-
-#	if [[ $(zonecfg -z ${mi_bzone} 'add attr; set name=mi-test; set type=string; set value="test"; end' 2> /dev/null)$? -ne 0 ]]; then
-#		failtest "Don't have proper privileges to continue.";
-#	else
-#		zonecfg -z ${mi_bzone} 'remove attr name=mi-test'
-#	fi
+	if [[ $(zonecfg -z ${mi_bzone} 'add attr; set name=mi-test; set type=string; set value="test"; end' 2> /dev/null)$? -ne 0 ]]; then
+		failtest "Don't have proper privileges to continue.";
+	else
+		zonecfg -z ${mi_bzone} 'remove attr name=mi-test'
+	fi
 
 	# Check if build zone mi_bzone is configured and running
-#	[[ $(zoneadm -z ${mi_bzone} list -p 2> /dev/null | awk -F: '{ print $3 }') != "running" ]] && failtest "Build zone ${mi_bzone} must be configured and\n  running.";
+	[[ $(zoneadm -z ${mi_bzone} list -p 2> /dev/null | awk -F: '{ print $3 }') != "running" ]] && failtest "Build zone ${mi_bzone} must be configured and\n  running.";
 
 	# Check that build repository mi_brepo directory exists
 	[[ -d "${mi_brepo}" ]] || [[ -d "${mi_reposdir}/${mi_brepo}" ]] || failtest "Build repository ${mi_brepo} doesn\'t exist.";
@@ -269,6 +262,7 @@ zone_backup_zonepath() {
 	|| zonecfg -z ${mi_bzone} "select attr name=mi-zpath; set value=\"${mi_bzone_oldpath}\"; end" &> /dev/null;
 }
 zone_halt() {
+	printf "%-60s" "* Halting build zone (${mi_bzonet})..";
 	zoneadm -z ${mi_bzone} halt &> /dev/null || failtest "Unable to halt zone ${mi_bzone}";
 
 	zone_timeout="30";
@@ -279,19 +273,12 @@ zone_halt() {
 		zone_timeout=$((zone_timeout - 1));
 		[[ ${zone_timeout} -le 0 ]] && failtest "Unable to halt zone ${mi_bzone}."; 
 	done
+	sleep 1;
 
+	printf "OK.\n";
 }
 zone_configure_buildzone() {
 	printf "%-60s" "* Configuring build zone (${mi_bzonet})..";
-
-	# Create build the zone from vm.json
-	vmadm create -f ${mi_home}/etc/vm.json &> /dev/null || failtest "Unable to create build zone ${mi_bzone}";
-
-	# Halt the build zone
-	zone_halt;
-
-	# Backup zonepath as mi-zpath attr
-	zone_backup_zonepath;
 
 	# Unmount cores filesystem zones/cores/mi_bzone from build zone mi_bzone
 	zfs unmount zones/cores/${mi_bzone} || failtest "Unable to unmount zones/cores/${mi_bzone}.";
@@ -331,9 +318,6 @@ zone_configure_buildzone() {
 	    /${mi_bzone_tplate}/root/etc/hostname.${mi_bzone_vnic} 2> /dev/null || true;
 	done
 
-	# Boot the build zone
-	zone_boot;
-
 	printf "OK.\n";
 }
 zone_copyin_files() {
@@ -356,7 +340,10 @@ zone_copyin_files() {
 	IFS=${OLDIFS};
 }
 zone_boot() {
-	zoneadm -z ${mi_bzone} boot &> /dev/null || failtest "Unable to boot ${mi_bzone}.";
+	printf "%-60s" "* Booting build zone (${mi_bzonet})..";
+
+	zoneadm -z ${mi_bzone} boot
+# &> /dev/null || failtest "Unable to boot ${mi_bzone}.";
 
 	zone_timeout="80";
 	while true; do
@@ -367,6 +354,8 @@ zone_boot() {
 		zone_timeout=$((zone_timeout - 1));
 		[[ ${zone_timeout} -le 0 ]] && failtest "Unable to boot zone ${mi_bzone}."; 
 	done
+
+	printf "OK.\n";
 }
 zone_create_motdproduct() {
         if [[ -f "/${mi_brepo_path}/motd" ]]; then
@@ -440,13 +429,6 @@ zone_exec_customize() {
 	fi
 }
 zone_cleanup() {
-        # Check if mi_bzone_tplate exists and remove it
-        [[ $(zfs list -Ho name -t filesystem ${mi_bzone_tplate} &> /dev/null)$? -eq 0 ]] && zfs destroy -R ${mi_bzone_tplate} &> /dev/null
-
-	# Check if mi_bimage_snap exists and remove it
-        [[ $(zfs list -Ho name -t snapshot ${mi_bimage_snap} &> /dev/null)$? -eq 0 ]] && zfs destroy ${mi_bimage_snap} &> /dev/null
-}
-zone_cleanup_new() {
         # Check if mi_bzone_tplate exists and remove it
         [[ $(zfs list -Ho name -t filesystem ${mi_bzone_tplate} &> /dev/null)$? -eq 0 ]] && zfs destroy -R ${mi_bzone_tplate} &> /dev/null
 
@@ -577,50 +559,29 @@ sed '/^[[:blank:]]*$/d' <<-EOF > ${mi_bfinal_manifest}
 EOF
 	printf "OK.\n\n";
 }
-zone_delete_vm() {
-        # Check if mi_bzone_tplate exists and remove it
-        [[ $(zfs list -Ho name -t filesystem ${mi_bzone_tplate} &> /dev/null)$? -eq 0 ]] && zfs destroy -R ${mi_bzone_tplate} &> /dev/null
-
-	# Check if mi_bimage_snap exists and remove it
-        [[ $(zfs list -Ho name -t snapshot ${mi_bimage_snap} &> /dev/null)$? -eq 0 ]] && zfs destroy ${mi_bimage_snap} &> /dev/null
-
-	# Delete the build zone
-	vmadm delete ${mi_bzone} &> /dev/null
-	zfs destroy -r zones/${mi_bzone} &> /dev/null
-	zfs destroy zones/cores/${mi_bzone} &> /dev/null
-}
 zone_unconfigure_buildzone() {
 	printf "%-60s" "* Un-configuring build zone (${mi_bzonet})..";
-
-	# First halt the build zone
-	zone_halt;
 	
 	# Detach existing dataset from build zone mi_bzone
 	zoneadm -z ${mi_bzone} detach &> /dev/null || failtest "Unable to detach dataset from ${mi_bzone}.";
 
 	# Restore original network configuration to build zone mi_bzone
-#	mi_bzone_vnics=($(zonecfg -z ${mi_bzone} info net 2>/dev/null | \
-#	  awk '{if($1~/physical/) print $2}'));
+	mi_bzone_vnics=($(zonecfg -z ${mi_bzone} info net 2>/dev/null | \
+	  awk '{if($1~/physical/) print $2}'));
 
-#	mv /${mi_bzone_tplate}/root/etc/defaultrouter{.orig,} 2>/dev/null || \
-#	rm /${mi_bzone_tplate}/root/etc/defaultrouter 2>/dev/null || true;
-	rm /${mi_bzone_tplate}/root/etc/defaultrouter* 2>/dev/null || true;
+	mv /${mi_bzone_tplate}/root/etc/defaultrouter{.orig,} 2>/dev/null || \
+	rm /${mi_bzone_tplate}/root/etc/defaultrouter 2>/dev/null || true;
 
-#	for mi_bzone_vnic in ${mi_bzone_vnics[@]}; do
-#		mv /${mi_bzone_tplate}/root/etc/hostname.${mi_bzone_vnic}{.orig,} 2>/dev/null || \
-#		rm /${mi_bzone_tplate}/root/etc/hostname.${mi_bzone_vnic} 2>/dev/null || true;
-#	done
-		rm /${mi_bzone_tplate}/root/etc/hostname.* 2>/dev/null || true;
+	for mi_bzone_vnic in ${mi_bzone_vnics[@]}; do
+		mv /${mi_bzone_tplate}/root/etc/hostname.${mi_bzone_vnic}{.orig,} 2>/dev/null || \
+		rm /${mi_bzone_tplate}/root/etc/hostname.${mi_bzone_vnic} 2>/dev/null || true;
+	done
 
 	# Snapshot the final image mi_bzone_tplate@final
 	# Make sure the final snapshot doesn't contain any SUNattached.xml/SUNWdetached.xml files
 	rm -f /${mi_bzone_tplate}/SUNW{at,de}tached.xml
 	zfs snapshot ${mi_bzone_tplate}@final &> /dev/null || failtest "Unable to create snapshot ${mi_bzone_tplate}@final.";
-	printf "OK.\n";
 
-}
-
-zone_old_stuff() {
 	# Re-configure build zone mi_bzone with original dataset
 	mi_bzone_oldpath=$(eval echo $(zonecfg -z ${mi_bzone} \
 	info attr name=mi-zpath 2>/dev/null | awk -F: '{if ($1~/value/) print $2}'));
