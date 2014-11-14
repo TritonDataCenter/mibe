@@ -17,7 +17,7 @@ usage() {
 	build_smartos - version ${mi_version}
 	Image builder for SmartOS images
 
-	Usage: $0 [options] BUILD_BASE BUILD_ZONE BUILD_REPO
+	Usage: $0 [options] BUILD_REPO
 
 	Options:
 
