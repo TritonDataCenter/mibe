@@ -225,19 +225,16 @@ if [[ ${ts_opt_w} ]]; then
 	ts_image_pkgsrcq=$(pfexec zlogin f6d773b0-cc97-11e3-9d16-6fa215a110d1 PATH=/usr/local/sbin:/usr/local/bin:/opt/local/sbin:/opt/local/bin:/usr/sbin:/usr/bin:/sbin "cat /opt/local/etc/pkg_install.conf" | awk -F/ '{ print $6 }');
 	ts_image_pkgsrcr=$(pfexec zlogin f6d773b0-cc97-11e3-9d16-6fa215a110d1 PATH=/usr/local/sbin:/usr/local/bin:/opt/local/sbin:/opt/local/bin:/usr/sbin:/usr/bin:/sbin "cat /opt/local/etc/pkg_install.conf" | awk -F= '{ print $2 }');
 
-
 	cat > ${ts_image_logdoc} <<-EOF
-## $ts_imagenv {#$ts_imagenv}
+h2. ${ts_imagenv} 
 
-| | |
-| :----  | :----    |
-| Name | $ts_imagenn |
-| Description | $description |
-| UUID | $ts_image_uuid |
-| Based on | (link: images/smartos/base text: $ts_imagebn $ts_imagebv) |
-| Pkgsrc | (link: $ts_image_pkgsrcr text: $ts_image_pkgsrcq) |
+|| Name | {{${ts_imagenn}}} |
+|| Description | ${description} |
+|| UUID | {{${ts_image_uuid}}} |
+|| Based on | [${ts_imagebn} ${ts_imagebv}|SmartMachine Base] |
+|| pkgsrc | [${ts_image_pkgsrcq}|${ts_image_pkgsrcr}]
 
-## What's New In This Image {#WhatsNewInThisImage}
+h3. What's New in This Image
 
 EOF
 
@@ -245,28 +242,38 @@ gawk '/* / { print } /^$/ { exit }' ${mi_reposdir}/${ts_image_repo}/Changelog >>
 
 	cat >> ${ts_image_logdoc} <<-EOF
 
-## Software Included In This Image {#SoftwareIncludedInThisImage}
+h3. Software Included in This Image
 
 Software installed as pkgsrc packages:
 
-\`\`\`
+{code:lang=none}
 EOF
-
-	zlogin f6d773b0-cc97-11e3-9d16-6fa215a110d1 "PATH=/usr/local/sbin:/usr/local/bin:/opt/local/sbin:/opt/local/bin:/usr/sbin:/usr/bin:/sbin pkgin ls | cut -f 1 -d ' ' - | egrep \"^apache|^apt|^bash|^bzip2|^cassandra|^couchdb|^courier-imap|^curl|^cvs|^db4|^dpkg|^dtracetools|^duo|^elasticsearch|^erlang|^flume|^gcc|^git|^gtar-base|^hadoop|^hbase|^hcatalog|^hive|^htop|^lighttpd|^mahout|^mailman|^magento|^memcached|^mongodb|^mysql-client|^mysql-server|^mysql-cluster|^nginx|^nodejs|^oozie|^openssl|^percona|^perl|^php|^pig|^pkgin|^postfix|^postgresql|^procmail|^python|^quickbackup|^redis|^ruby|^scmgit-base|^smtools|^sqlite|^sqoop|^subversion|^sudo|^templeton|^tomcat|^unzip|^wget|^yum|^zip|^zoneinit|^zookeeper\"" >> ${ts_image_logdoc}
+	zlogin f6d773b0-cc97-11e3-9d16-6fa215a110d1 "PATH=/usr/local/sbin:/usr/local/bin:/opt/local/sbin:/opt/local/bin:/usr/sbin:/usr/bin:/sbin pkgin ls | cut -f 1 -d ' ' - | egrep \"^apache|^apt|^bash|^bzip2|^cassandra|^couchdb|^courier-imap|^curl|^cvs|^db4|^dpkg|^duo|^elasticsearch|^erlang|^flume|^gcc|^git|^gtar-base|^hadoop|^hbase|^hcatalog|^hive|^lighttpd|^mahout|^mailman|^magento|^memcached|^mongodb|^mysql-client|^mysql-server|^mysql-cluster|^nginx|^nodejs|^oozie|^openssl|^perl|^php|^pig|^pkgin|^postfix|^postgresql|^procmail|^python|^quickbackup|^redis|^ruby|^scmgit-base|^smtools|^sqlite|^sqoop|^subversion|^sudo|^templeton|^tomcat|^unzip|^wget|^yum|^zip|^zoneinit|^zookeeper\"" >> ${ts_image_logdoc}
 
 	cat >> ${ts_image_logdoc} <<-EOF
-\`\`\`
+{code}
 
 Software installed as npm packages:
 
-\`\`\`
-EOF
+{code:lang=none}
+	EOF
 
 	zlogin f6d773b0-cc97-11e3-9d16-6fa215a110d1 "PATH=/usr/local/sbin:/usr/local/bin:/opt/local/sbin:/opt/local/bin:/usr/sbin:/usr/bin:/sbin npm ls -g | egrep \"jsontool@| json@|manta@|smartdc@\"" | awk '{ print $2 }' >> ${ts_image_logdoc}
 
 	cat >> ${ts_image_logdoc} <<-EOF
-\`\`\`
-EOF
+{code}
+
+{toggle-cloak:id=SmartOS-${ts_imagenn}-${ts_imagenv}}For a detailed list of every package installed with this image, click here.
+{cloak:id=SmartOS-${ts_imagenn}-${ts_imagenv}}
+{code:lang=none}
+	EOF
+
+	zlogin f6d773b0-cc97-11e3-9d16-6fa215a110d1 "PATH=/usr/local/sbin:/usr/local/bin:/opt/local/sbin:/opt/local/bin:/usr/sbin:/usr/bin:/sbin pkgin ls" >> ${ts_image_logdoc}
+	
+	cat >> ${ts_image_logdoc} <<-EOF
+{code}
+{cloak}
+	EOF
 
 	printf "OK.\n";
 fi

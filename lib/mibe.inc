@@ -198,8 +198,6 @@ get_vars() {
 	mi_time=$(date +%Y-%m-%d_%H-%M-%S);
 	mi_bzone=$(json -f ${mi_home}/etc/vm.json -aH uuid);
 	mi_bzonet=$(echo ${mi_bzone:0:18});
-	mi_bfinal_dump="${mi_home}/images/${name}.zfs.gz";
-	mi_bfinal_manifest="${mi_home}/images/${name}.dsmanifest";
 	mi_bfinal_snap="zones/${name}@final";
 	mi_bimage_snap="zones/${base}@${name}";
 	mi_bzone_tplate="zones/${name}";
@@ -210,6 +208,9 @@ get_vars() {
 	mi_imagenv="${name##*-}";
 	mi_imagebn="${base%-*}";
 	mi_imagebv="${base#*-}";
+	mi_imagebd="${mi_imagenv%.*}.0";
+	mi_bfinal_dump="${mi_home}/images/${mi_imagebd}/${name}.zfs.gz";
+	mi_bfinal_manifest="${mi_home}/images/${mi_imagebd}/${name}.dsmanifest";
 }
 build_sanitycheck() {
 	printf "\n%-60s" "* Sanity checking build files and environment..";
@@ -486,6 +487,8 @@ zone_cleanup_sighandler() {
 }
 zone_create_dumpmanifest() {
 	printf "%-60s" "* Creating image file and manifest..";
+
+	[[ ! -d "${mi_home}/images/${mi_imagebd}" ]] && mkdir ${mi_home}/images/${mi_imagebd};
 
 	zfs send ${mi_bzone_tplate}@final 2> /dev/null | gzip -9 > ${mi_bfinal_dump} || failtest "Unable to zfs dump ${mi_bfinal_dump}.";
 
