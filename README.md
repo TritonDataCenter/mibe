@@ -15,7 +15,7 @@ MIBE is a build environment for SmartOS images ise by the Image Team, but it's n
 
         # pkgin install scmgit
 
-* Import latest base/base64 image to build images from:
+* Import latest base-32 or base-64 image to build images from:
 
         # imgadm import $(imgadm avail | awk '/base64/ { print $1 }' | tail -1)
 
