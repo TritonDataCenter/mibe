@@ -1,5 +1,1 @@
 users/
-bin/build_stingray
-bin/joyent-imgadm
-bin/test_smartos
-bin/test_smartos.old
