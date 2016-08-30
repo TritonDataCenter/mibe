@@ -1,2 +1,6 @@
 users/
 bin/build_stingray
+bin/sdc-vmmanifest
+bin/test_imgmgm
+bin/test_lxbrand
+bin/test_smartos

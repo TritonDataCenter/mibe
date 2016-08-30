@@ -59,7 +59,7 @@ done
 shift $(($OPTIND - 1))
 if [[ $# = 2 ]]; then
         ts_image_file="$1";
-        ts_image_repo="$2";
+        ts_image_repo=$(basename $2);
 else
         usage;
 fi
@@ -71,7 +71,7 @@ mi_home=$(dirname $(cd ${0%/*} && pwd -P));
 
 test_cleanup_sighandler() {
 	ts_image_mani_dir="$(dirname ${ts_image_file})";
-	ts_image_mani="${ts_image_mani_dir}/${ts_image_fileb%.zfs.gz}.dsmanifest";
+	ts_image_mani="${ts_image_mani_dir}/${ts_image_fileb%.zfs.gz}.json";
 	ts_image_uuid=$(json -f ${ts_image_mani} -aH uuid);
 
 	printf "\n* Cleaning up..\n\n";
@@ -98,7 +98,7 @@ printf "Image tester for SmartOS images\n";
 printf "\n%-60s" "* Sanity checking test files and environment.."
 
 # Check that we have privileges
-[[ $(imgadm &> /dev/null)$? -ne 0 ]] && failts "We don't have enough privileges to continue.";
+[[ $(imgadm &> /dev/null)$? -eq 2 ]] && failts "We don't have enough privileges to continue.";
 
 # Check that build repository ts_brepo directory exists
 [[ -d "${ts_image_repo}/tests" ]] || [[ -d "${mi_reposdir}/${ts_image_repo}/tests" ]] || failts "Build repository ${ts_image_repo}/tests doesn\'t exist.";
@@ -117,7 +117,7 @@ printf "\n%-60s" "* Sanity checking test files and environment.."
 
 # Get manifest
 ts_image_mani_dir="$(dirname ${ts_image_file})";
-ts_image_mani="${ts_image_mani_dir}/${ts_image_fileb%.zfs.gz}.dsmanifest";
+ts_image_mani="${ts_image_mani_dir}/${ts_image_fileb%.zfs.gz}.json";
 ts_image_uuid=$(json -f ${ts_image_mani} -aH uuid);
 [[ $(imgadm list -H -o uuid | grep "${ts_image_uuid}") ]] && ts_image_imported="yes";
 
@@ -201,7 +201,8 @@ cat > ${mi_reposdir}/${ts_image_repo}/tests/vm.json <<-EOF
 }
 EOF
 
-	vmadm create -f ${mi_reposdir}/${ts_image_repo}/tests/vm.json &> /dev/null || failts "There was an error creating the VM.";
+#	vmadm create -f ${mi_reposdir}/${ts_image_repo}/tests/vm.json &> /dev/null || failts "There was an error creating the VM.";
+	vmadm create -f ${mi_reposdir}/${ts_image_repo}/tests/vm.json || failts "There was an error creating the VM.";
 	rm ${mi_reposdir}/${ts_image_repo}/tests/vm.json
 	printf "OK.\n";
 else
@@ -211,7 +212,7 @@ fi
 ts_imagenn="${name%-*}";
 ts_imagenv="${name##*-}";
 ts_imagebn="${base%-*}";
-ts_imagebv="${base#*-}";
+ts_imagebv="${base##*-}";
 
 #ts_imagenn="${name%-*}";
 #ts_imagenv="${name#*-}";
@@ -222,8 +223,8 @@ ts_imagebv="${base#*-}";
 if [[ ${ts_opt_w} ]]; then
 	printf "%-60s" "* Creating documentation.."
 
-	ts_image_pkgsrcq=$(pfexec zlogin f6d773b0-cc97-11e3-9d16-6fa215a110d1 PATH=/usr/local/sbin:/usr/local/bin:/opt/local/sbin:/opt/local/bin:/usr/sbin:/usr/bin:/sbin "cat /opt/local/etc/pkg_install.conf" | awk -F/ '{ print $6 }');
-	ts_image_pkgsrcr=$(pfexec zlogin f6d773b0-cc97-11e3-9d16-6fa215a110d1 PATH=/usr/local/sbin:/usr/local/bin:/opt/local/sbin:/opt/local/bin:/usr/sbin:/usr/bin:/sbin "cat /opt/local/etc/pkg_install.conf" | awk -F= '{ print $2 }');
+	ts_image_pkgsrcq=$(pfexec zlogin f6d773b0-cc97-11e3-9d16-6fa215a110d1 "PATH=/usr/local/sbin:/usr/local/bin:/opt/local/sbin:/opt/local/bin:/usr/sbin:/usr/bin:/sbin cat /opt/local/etc/pkg_install.conf | grep PKG_PATH | awk -F/ '{ print $6 }'");
+	ts_image_pkgsrcr=$(pfexec zlogin f6d773b0-cc97-11e3-9d16-6fa215a110d1 "PATH=/usr/local/sbin:/usr/local/bin:/opt/local/sbin:/opt/local/bin:/usr/sbin:/usr/bin:/sbin cat /opt/local/etc/pkg_install.conf | grep PKG_PATH | awk -F= '{ print $2 }'");
 
 
 	cat > ${ts_image_logdoc} <<-EOF
@@ -252,7 +253,11 @@ Software installed as pkgsrc packages:
 \`\`\`
 EOF
 
-	zlogin f6d773b0-cc97-11e3-9d16-6fa215a110d1 "PATH=/usr/local/sbin:/usr/local/bin:/opt/local/sbin:/opt/local/bin:/usr/sbin:/usr/bin:/sbin pkgin ls | cut -f 1 -d ' ' - | egrep \"^apache|^apt|^bash|^bzip2|^cassandra|^couchdb|^courier-imap|^curl|^cvs|^db4|^dpkg|^dtracetools|^duo|^elasticsearch|^erlang|^flume|^gcc|^git|^gtar-base|^hadoop|^hbase|^hcatalog|^hive|^htop|^lighttpd|^mahout|^mailman|^magento|^memcached|^mongodb|^mysql-client|^mysql-server|^mysql-cluster|^nginx|^nodejs|^oozie|^openssl|^percona|^perl|^php|^pig|^pkgin|^postfix|^postgresql|^procmail|^python|^quickbackup|^redis|^ruby|^scmgit-base|^smtools|^sqlite|^sqoop|^subversion|^sudo|^templeton|^tomcat|^unzip|^wget|^yum|^zip|^zoneinit|^zookeeper\"" >> ${ts_image_logdoc}
+if [[ "${ts_imagenn}" = "base-32-lts" ]] || [[ "${ts_imagenn}" = "base-64-lts" ]] || [[ "${ts_imagenn}" = "base-multiarch-lts" ]] || [[ "${ts_imagenn}" = "minimal-32" ]] || [[ "${ts_imagenn}" = "minimal-64-lts" ]] || [[ "${ts_imagenn}" = "minimal-multiarch-lts" ]] || [[ "${ts_imagenn}" = "pkgbuild" ]]; then
+	zlogin f6d773b0-cc97-11e3-9d16-6fa215a110d1 "PATH=/usr/local/sbin:/usr/local/bin:/opt/local/sbin:/opt/local/bin:/usr/sbin:/usr/bin:/sbin pkgin ls | cut -f 1 -d\;" >> ${ts_image_logdoc}
+else
+	zlogin f6d773b0-cc97-11e3-9d16-6fa215a110d1 "PATH=/usr/local/sbin:/usr/local/bin:/opt/local/sbin:/opt/local/bin:/usr/sbin:/usr/bin:/sbin pkgin ls | cut -f 1 -d\; | egrep \"^apache|^apt|^bash|^bzip2|^cassandra|^couchdb|^courier-imap|^curl|^cvs|^db4|^dpkg|^dtracetools|^duo|^elasticsearch|^erlang|^flume|^gcc|^git|^gtar-base|^hadoop|^hbase|^hcatalog|^hive|^htop|^lighttpd|^mahout|^mailman|^magento|^memcached|^mongodb|^mysql-client|^mysql-server|^mysql-cluster|^nginx|^nodejs|^oozie|^openssl|^percona|^perl|^php|^pig|^pkgin|^postfix|^postgresql|^procmail|^python|^quickbackup|^redis|^ruby|^scmgit-base|^smtools|^sqlite|^sqoop|^subversion|^sudo|^templeton|^tomcat|^unzip|^wget|^yum|^zip|^zoneinit|^zookeeper\"" >> ${ts_image_logdoc}
+fi
 
 	cat >> ${ts_image_logdoc} <<-EOF
 \`\`\`
@@ -274,7 +279,8 @@ fi
 printf "%-60s" "* Creating ${ts_image_repo}/tests/properties.yml.."
 
 # Set server spec instance and base variables
-ts_image_sspec="0cfebdfc-97c9-c6db-cad4-bb99b90a6a8e";
+#ts_image_sspec="0cfebdfc-97c9-c6db-cad4-bb99b90a6a8e";
+ts_image_sspec="e926030e-db0d-11e5-be9d-9f8223d28d1f";
 
 # Create properties.yml
 cat > ${mi_reposdir}/${ts_image_repo}/tests/properties.yml <<-EOF
@@ -314,19 +320,37 @@ printf "%-60s" "* Running rake serverspec.."
 ts_image_result=$(zlogin ${ts_image_sspec} PATH=/usr/local/sbin:/usr/local/bin:/opt/local/sbin:/opt/local/bin:/usr/sbin:/usr/bin:/sbin rake serverspec --trace &> ${ts_image_logall} || echo $?);
 
 # If not detect a failure
-if [[ ! ${ts_image_result} ]] || [[ ${ts_opt_c} ]] ; then
+if [[ ! ${ts_image_result} ]]; then
 	printf "OK.\n";
 
-	printf "%-60s" "* Cleaning up.."
+	if [[ ${ts_opt_c} ]]; then
+		printf "%-60s" "* Cleaning up.."
 
-	vmadm delete f6d773b0-cc97-11e3-9d16-6fa215a110d1 &> /dev/null
-	imgadm delete ${ts_image_uuid} &> /dev/null
+		vmadm delete f6d773b0-cc97-11e3-9d16-6fa215a110d1 &> /dev/null
+		imgadm delete ${ts_image_uuid} &> /dev/null
 
-	printf "OK.\n";
+		printf "OK.\n";
+	fi
+
+	printf "\nTesting completed for ${ts_image_fileb%.zfs.gz} with 0 failures.\nSee ${ts_image_logall}.$ts_message\n\n";
 else
-	ts_message="\n\n! VM deletion was not done.  To clean up you'll need to either:\n!\n! Fix the error and re-run the script so it will clean up.\n!\n! Or manually clean up with:\n!\n! # pfexec vmadm delete f6d773b0-cc97-11e3-9d16-6fa215a110d1\n! # pfexec imgadm delete ${ts_image_uuid}";
-	ts_image_fails=$(egrep "examples, [0-9][0-9]? failure" ${ts_image_logall} | awk '{ print $3 }') || ts_image_fails="1";
-	failts "There was ${ts_image_fails} failure(s) running rake serverspec.\n! See ${ts_image_logall}.$ts_message";
-fi
+# If detected a failure
+	printf "FAILED.\n";
 
-printf "\nTesting completed for ${ts_image_fileb%.zfs.gz} with 0 failures.\nSee ${ts_image_logall}.$ts_message\n\n";
+	if [[ ${ts_opt_c} ]]; then
+		printf "%-60s" "* Cleaning up.."
+
+		vmadm delete f6d773b0-cc97-11e3-9d16-6fa215a110d1 &> /dev/null
+		imgadm delete ${ts_image_uuid} &> /dev/null
+
+		printf "OK.\n";
+
+		ts_image_fails=$(egrep "examples, [0-9][0-9]? failure" ${ts_image_logall} | awk '{ print $3 }') || ts_image_fails="1";
+		printf "\n! There was ${ts_image_fails} failure(s) running rake serverspec.\n! See ${ts_image_logall}.$ts_message\n\n";
+	else
+		ts_message="\n\n! VM deletion was not done.  To clean up you'll need to either:\n!\n! Fix the error and re-run the script so it will clean up.\n!\n! Or manually clean up with:\n!\n! # pfexec vmadm delete f6d773b0-cc97-11e3-9d16-6fa215a110d1\n! # pfexec imgadm delete ${ts_image_uuid}";
+		ts_image_fails=$(egrep "examples, [0-9][0-9]? failure" ${ts_image_logall} | awk '{ print $3 }') || ts_image_fails="1";
+		printf "\n! There was ${ts_image_fails} failure(s) running rake serverspec.\n! See ${ts_image_logall}.$ts_message\n\n";
+	fi
+	exit 2;
+fi

@@ -13,7 +13,13 @@ failts() {
 }
 
 get_reposdir() {
-	[[ "${HOME}" = "${mi_home}/users/${LOGNAME}" ]] && mi_reposdir="${mi_home}/users/${LOGNAME}" || mi_reposdir="${mi_home}/repos";
+	if [[ "${HOME}" = "${mi_home}/users/${LOGNAME}" ]]; then
+		mi_reposdir="${mi_home}/users/${LOGNAME}"
+	elif [[ "${LOGNAME}" = "jenkins" ]]; then
+		mi_reposdir="${mi_home}/users/mu-derekc"
+	else
+		mi_reposdir="${mi_home}/repos";
+	fi
 }
 get_gitserver() {
 	# Make sure mi_home/etc/repos.conf exists
@@ -43,7 +49,7 @@ populate_smartos() {
 	# Create Changelog
 	cat > ${mi_reposdir}/${mi_repo}/Changelog <<-EOF
 	${mi_image}-x.x.x
-	* Base image is base64-x.x.x (20xxQx)
+	* Base image is base-64-x.x.x (20xxQx)
 	* Initial release
 	EOF
 
@@ -54,7 +60,7 @@ populate_smartos() {
 
 	# Build image to use for base of the image.  This image must
 	# already exist in the ZFS hierarchy.
-	base="base64-x.x.x"
+	base="base-64-x.x.x"
 
 	# Organization name (implanted in motd and product)
 	organization="Joyent"
@@ -66,7 +72,7 @@ populate_smartos() {
 	description="Description for image ${mi_image}"
 
 	# Homepage specific to the image
-	homepage="http://wiki.joyent.com/jpc2/${mi_image}+Instance"
+	homepage="https://docs.joyent.com/images/smartos/${mi_image}"
 
 	# Metadata users to be created (not real users created)
 	users=""
@@ -195,22 +201,23 @@ init_repo() {
 	echo "* Done.";
 }
 get_vars() {
+	mi_imagenn="${name%-*}";
+	mi_imagenv="${name##*-}";
+	mi_imagebn="${base%-*}";
+#	mi_imagebv="${base#*-}";
+	mi_imagebv="${base##*-}";
+	mi_imagebd="${mi_imagenv%.*}.0";
 	mi_time=$(date +%Y-%m-%d_%H-%M-%S);
 	mi_bzone=$(json -f ${mi_home}/etc/vm.json -aH uuid);
 	mi_bzonet=$(echo ${mi_bzone:0:18});
+        mi_bfinal_dump="${mi_home}/images/${mi_imagebd}/${mi_imagenn}-${mi_imagenv}.zfs.gz";
+	mi_bfinal_manifest="${mi_home}/images/${mi_imagebd}/${mi_imagenn}-${mi_imagenv}.json";
 	mi_bfinal_snap="zones/${name}@final";
 	mi_bimage_snap="zones/${base}@${name}";
 	mi_bzone_tplate="zones/${name}";
 	mi_brepo_path="${mi_reposdir}/${mi_brepo}";
 	mi_bzone_logall="${mi_home}/logs/${name}-${mi_time}-all.log";
 	mi_bzone_logerr="${mi_home}/logs/${name}-${mi_time}-error.log";
-	mi_imagenn="${name%-*}";
-	mi_imagenv="${name##*-}";
-	mi_imagebn="${base%-*}";
-	mi_imagebv="${base#*-}";
-	mi_imagebd="${mi_imagenv%.*}.0";
-	mi_bfinal_dump="${mi_home}/images/${mi_imagebd}/${name}.zfs.gz";
-	mi_bfinal_manifest="${mi_home}/images/${mi_imagebd}/${name}.dsmanifest";
 }
 build_sanitycheck() {
 	printf "\n%-60s" "* Sanity checking build files and environment..";
@@ -270,7 +277,8 @@ zone_backup_zonepath() {
 	|| zonecfg -z ${mi_bzone} "select attr name=mi-zpath; set value=\"${mi_bzone_oldpath}\"; end" &> /dev/null;
 }
 zone_halt() {
-	zoneadm -z ${mi_bzone} halt &> /dev/null || failtest "Unable to halt zone ${mi_bzone}";
+	zoneadm -z ${mi_bzone} halt || failtest "Unable to halt zone ${mi_bzone}";
+#	zoneadm -z ${mi_bzone} halt &> /dev/null || failtest "Unable to halt zone ${mi_bzone}";
 
 	zone_timeout="30";
 	while true; do
@@ -286,7 +294,8 @@ zone_configure_buildzone() {
 	printf "%-60s" "* Configuring build zone (${mi_bzonet})..";
 
 	# Create build the zone from vm.json
-	vmadm create -f ${mi_home}/etc/vm.json &> /dev/null || failtest "Unable to create build zone ${mi_bzone}";
+	#vmadm create -f ${mi_home}/etc/vm.json &> /dev/null || failtest "Unable to create build zone ${mi_bzone}";
+	vmadm create -f ${mi_home}/etc/vm.json || failtest "Unable to create build zone ${mi_bzone}";
 
 	# Halt the build zone
 	zone_halt;
@@ -401,7 +410,7 @@ zone_create_motdproduct() {
 zone_install_packages() {
 	# First run pkgin update
 	mi_bzone_result=$(zlogin ${mi_bzone} 'PATH=/opt/local/bin:/opt/local/sbin:/usr/bin:/usr/sbin \
-            touch /opt/local/.dlj_license_accepted; pkgin -f -y up 2>&1' >> ${mi_bzone_logall} \
+            /usr/bin/touch /opt/local/.dlj_license_accepted; /opt/local/bin/pkgin -f -y up' >> ${mi_bzone_logall} \
             | tee -a ${mi_bzone_logall} >> ${mi_bzone_logerr} || echo $?);
 
 	[[ ! ${mi_bzone_result} ]] || failtest "Unable to update pkgin list.";
@@ -538,7 +547,7 @@ zone_create_dumpmanifest() {
   fi
 
   # Set manifest owner_uuid to 9dce1460-0c4c-4417-ab8b-25ca478c5a78 if not set in manifest
-  [[ -z ${owneruuid} ]] && mi_manifest_owneruuid="9dce1460-0c4c-4417-ab8b-25ca478c5a78"; 
+  [[ -z ${owneruuid} ]] && mi_manifest_owneruuid="00000000-0000-0000-0000-000000000000";
 
   # Get file details
   mi_file_time=$(ls -l --time-style '+%Y-%m-%dT%H:%M:%SZ' ${mi_bfinal_dump} | awk '{ print $6 }');
@@ -570,7 +579,10 @@ sed '/^[[:blank:]]*$/d' <<-EOF > ${mi_bfinal_manifest}
   ${mi_manifest_homepage_block}
   "requirements": {
     ${mi_manifest_minram_block}
-    ${mi_manifest_networks_block}
+    ${mi_manifest_networks_block},
+    "min_platform": {
+      "7.0": "20141030T081701Z"
+    }
   },
   ${mi_manifest_users_block}
   ${mi_manifest_role_block}

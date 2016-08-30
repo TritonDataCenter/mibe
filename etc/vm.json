@@ -1,6 +1,6 @@
 {
-  "zonename": "95dacbfa-69b5-11e4-a52c-bfcabaff8f0c",
-  "zonepath": "/zones/95dacbfa-69b5-11e4-a52c-bfcabaff8f0c",
+  "zonename": "c10d83fc-6f09-11e6-82f7-378b2b9ac8db",
+  "zonepath": "/zones/c10d83fc-6f09-11e6-82f7-378b2b9ac8db",
   "autoboot": true,
   "brand": "joyent",
   "limit_priv": "default",
@@ -13,8 +13,7 @@
   "max_locked_memory": 4096,
   "max_swap": 8192,
   "cpu_cap": 800,
-  "billing_id": "333814c2-b4a7-481f-9f86-73bb4122c7a3",
-  "owner_uuid": "c31f59cb-e4f8-4fe4-a0ab-99d4559786af",
+  "owner_uuid": "c31f59cb-e4f8-4fe4-a0ab-99d4559786ac",
   "tmpfs": 4096,
   "dns_domain": "local",
   "archive_on_delete": true,
@@ -28,10 +27,10 @@
       "interface": "net0",
       "vlan_id": 1142,
       "nic_tag": "external",
-      "gateway": "72.2.116.145",
-      "ip": "72.2.116.156",
+      "gateway": "72.2.112.145",
+      "ip": "72.2.112.155",
       "netmask": "255.255.255.240",
-      "network_uuid": "307d7cc8-7128-4b52-91d1-d8c1fe6e088e",
+      "network_uuid": "307d7cc8-7128-4b52-91d1-d8c1fe6e088o",
       "primary": true
     },
     {
@@ -41,11 +40,11 @@
       "gateway": "10.112.22.177",
       "ip": "10.112.22.190",
       "netmask": "255.255.255.240",
-      "network_uuid": "6ff8106e-7e18-483d-9e2f-0a53b9d9d525"
+      "network_uuid": "6ff8106e-7e18-483d-9e2f-0a53b9d9d528"
     } 
   ],
   "uuid": "95dacbfa-69b5-11e4-a52c-bfcabaff8f0c",
-  "server_uuid": "44454c4c-3800-1058-8058-b4c04f355631",
+  "server_uuid": "011d7768-6f0a-11e6-a0ef-dfecc3d7dc62",
   "datacenter_name": "us-east-1",
   "internal_metadata": {},
   "quota": 120
