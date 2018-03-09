@@ -581,7 +581,7 @@ sed '/^[[:blank:]]*$/d' <<-EOF > ${mi_bfinal_manifest}
     ${mi_manifest_minram_block}
     ${mi_manifest_networks_block},
     "min_platform": {
-      "7.0": "20141030T081701Z"
+      "7.0": "20151126T062538Z"
     }
   },
   ${mi_manifest_users_block}
